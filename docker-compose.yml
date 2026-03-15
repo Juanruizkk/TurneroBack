@@ -1,0 +1,26 @@
+# Desarrollo local: solo la base de datos.
+# La API se corre con: dotnet watch run --project src/Api
+
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: turnero_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: turnero
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: turnero123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d turnero"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
