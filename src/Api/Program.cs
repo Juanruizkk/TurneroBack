@@ -51,13 +51,24 @@ builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 builder.Services.AddScoped<SucursalService>();
 builder.Services.AddScoped<ServicioService>();
 builder.Services.AddScoped<ClienteService>();
-builder.Services.AddScoped<TurnoService>();
+builder.Services.AddScoped<TurnoService>(sp =>
+{
+    var turnoRepo      = sp.GetRequiredService<ITurnoRepository>();
+    var servicioRepo   = sp.GetRequiredService<IServicioRepository>();
+    var clienteRepo    = sp.GetRequiredService<IClienteRepository>();
+    var sucursalRepo   = sp.GetRequiredService<ISucursalRepository>();
+    var emailService   = sp.GetRequiredService<IEmailService>();
+    var comentarioRepo = sp.GetRequiredService<IComentarioTurnoRepository>();
+    var frontendUrl    = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
+    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl);
+});
 builder.Services.AddScoped<CajaService>();
 builder.Services.AddScoped<SuperAdminService>();
 builder.Services.AddScoped<AjustesService>();
 builder.Services.AddScoped<PublicoService>();
 builder.Services.AddScoped<InvitacionService>();
 builder.Services.AddScoped<JwtService>();
+builder.Services.AddHostedService<TurnoAutoNoShowService>();
 builder.Services.AddScoped<AuthService>(sp =>
 {
     var repo    = sp.GetRequiredService<IUsuarioRepository>();

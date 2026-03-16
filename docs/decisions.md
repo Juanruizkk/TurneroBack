@@ -105,10 +105,13 @@ Si `requiereSena: true`, deben enviarse `tipoSena` y `valorSena`:
 
 ### GET /api/servicios
 ```
-GET /api/servicios                       → todos
-GET /api/servicios?sucursalId={id}       → por sucursal
-GET /api/servicios/{id}                  → uno
+GET /api/servicios                                          → todos (solo activos)
+GET /api/servicios?sucursalId={id}                         → por sucursal (solo activos)
+GET /api/servicios?sucursalId={id}&incluirInactivos=true   → por sucursal (activos e inactivos)
+GET /api/servicios/{id}                                    → uno
 ```
+
+> `incluirInactivos=false` es el default. El panel admin usa `incluirInactivos=true`; el booking flow y el staff usan el default.
 
 ---
 
@@ -341,8 +344,11 @@ La validación es: existe conflicto si `slotInicio < reservaFin AND slotFin > re
 ### Seña: la política de devolución es responsabilidad del sistema, no de Mercado Pago
 Mercado Pago solo ejecuta el cobro/refund. La lógica de si corresponde devolución (ej: más de 24h → devolución total) vive en el backend.
 
-### DELETE vs cancelación
+### DELETE vs cancelación (turnos)
 `DELETE /api/turnos/{id}` elimina físicamente el registro. Para cancelar un turno conservando el historial, usar `PUT /api/turnos/{id}` con `estado: "CanceladoCliente"` o `"CanceladoStaff"`.
+
+### Soft-delete de servicios
+`DELETE /api/servicios/{id}` no elimina el registro: pone `Activo = false`. Esto evita errores de FK cuando el servicio tiene turnos asignados (`DeleteBehavior.Restrict`). Los turnos ya agendados se mantienen intactos y conservan el snapshot de precio. Para reactivar, usar `PUT /api/servicios/{id}` con `activo: true`.
 
 ---
 

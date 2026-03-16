@@ -100,4 +100,16 @@ public class TurnoRepository : GenericRepository<Turno>, ITurnoRepository
 
         return await query.AnyAsync();
     }
+
+    public async Task<IEnumerable<Turno>> GetConfirmadosPendientesAntesDeAsync(DateTime fechaLimite)
+    {
+        return await _dbSet
+            .Include(t => t.Cliente)
+            .Include(t => t.Servicio)
+            .Include(t => t.Profesional)
+            .Where(t =>
+                (t.Estado == EstadoTurno.Confirmado || t.Estado == EstadoTurno.Pendiente) &&
+                t.FechaHoraFin < fechaLimite)
+            .ToListAsync();
+    }
 }

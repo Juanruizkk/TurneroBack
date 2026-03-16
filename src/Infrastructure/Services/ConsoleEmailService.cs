@@ -45,7 +45,8 @@ public class ConsoleEmailService : IEmailService
         string servicioNombre,
         string profesionalNombre,
         DateTime fechaHoraInicio,
-        DateTime fechaHoraFin)
+        DateTime fechaHoraFin,
+        string cancelUrl)
     {
         _logger.LogWarning(
             """
@@ -59,12 +60,14 @@ public class ConsoleEmailService : IEmailService
             ║  Profesional: {Profesional}
             ║  Inicio:      {Inicio}
             ║  Fin:         {Fin}
+            ║  Cancelar:    {CancelUrl}
             ╚══════════════════════════════════════════════════════╝
             """,
             destinatarioEmail, destinatarioNombre, nombreSucursal,
             servicioNombre, profesionalNombre,
             fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"),
-            fechaHoraFin.ToString("HH:mm"));
+            fechaHoraFin.ToString("HH:mm"),
+            cancelUrl);
 
         return Task.CompletedTask;
     }
@@ -87,6 +90,83 @@ public class ConsoleEmailService : IEmailService
             ╚══════════════════════════════════════════════════════╝
             """,
             destinatarioEmail, destinatarioNombre, nombreSucursal, linkInvitacion);
+
+        return Task.CompletedTask;
+    }
+
+    public Task EnviarCancelacionStaffAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        DateTime fechaHoraInicio)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║       [DEV] EMAIL CANCELACIÓN POR STAFF              ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:     {Email}
+            ║  Cliente:  {Nombre}
+            ║  Sucursal: {Sucursal}
+            ║  Servicio: {Servicio}
+            ║  Inicio:   {Inicio}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, nombreSucursal,
+            servicioNombre, fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"));
+
+        return Task.CompletedTask;
+    }
+
+    public Task EnviarCancelacionClienteAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        DateTime fechaHoraInicio)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║      [DEV] EMAIL CANCELACIÓN POR CLIENTE             ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:     {Email}
+            ║  Cliente:  {Nombre}
+            ║  Sucursal: {Sucursal}
+            ║  Servicio: {Servicio}
+            ║  Inicio:   {Inicio}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, nombreSucursal,
+            servicioNombre, fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"));
+
+        return Task.CompletedTask;
+    }
+
+    public Task EnviarAlertaLiberacionAgendaAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string clienteNombre,
+        DateTime fechaHoraInicio)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║      [DEV] ALERTA SLOT LIBERADO (profesional)        ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:     {Email}
+            ║  Nombre:   {Nombre}
+            ║  Sucursal: {Sucursal}
+            ║  Servicio: {Servicio}
+            ║  Cliente:  {Cliente}
+            ║  Inicio:   {Inicio}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, nombreSucursal,
+            servicioNombre, clienteNombre, fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"));
 
         return Task.CompletedTask;
     }

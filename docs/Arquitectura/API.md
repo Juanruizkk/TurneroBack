@@ -371,9 +371,12 @@ Lista todos los servicios. Puede filtrarse por sucursal.
 
 **Query params:**
 
-| Parámetro    | Tipo   | Requerido | Descripción            |
-|--------------|--------|-----------|------------------------|
-| `sucursalId` | `Guid` | ❌        | Filtra por sucursal    |
+| Parámetro          | Tipo   | Requerido | Default  | Descripción                                      |
+|--------------------|--------|-----------|----------|--------------------------------------------------|
+| `sucursalId`       | `Guid` | ❌        | —        | Filtra por sucursal                              |
+| `incluirInactivos` | `bool` | ❌        | `false`  | Si `true`, devuelve también los servicios inactivos |
+
+> Por defecto solo se devuelven servicios con `activo: true`. El panel admin debe pasar `incluirInactivos=true` para ver el catálogo completo.
 
 **Respuesta 200 OK:**
 
@@ -468,9 +471,11 @@ Actualiza un servicio existente.
 
 ### `DELETE /api/servicios/{id}` 🔒
 
-Elimina un servicio.
+**Soft-delete:** marca el servicio como inactivo (`activo: false`). No elimina el registro físicamente ni afecta los turnos ya agendados.
 
 **Respuesta 204 No Content.** **404** si no existe.
+
+> Para reactivar un servicio desactivado, usar `PUT /api/servicios/{id}` con `activo: true`.
 
 ---
 
@@ -1290,4 +1295,4 @@ Los enums se serializan como **strings** en todos los endpoints (no como número
 
 ---
 
-*Documentación generada el 2026-03-14. Versión de API: 1.0.*
+*Documentación generada el 2026-03-14. Última actualización: 2026-03-16. Versión de API: 1.0.*

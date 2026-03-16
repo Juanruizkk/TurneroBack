@@ -33,4 +33,20 @@ public class ClienteRepository : GenericRepository<Cliente>, IClienteRepository
                                    && c.Email != null
                                    && c.Email.ToLower() == email.ToLower());
     }
+
+    public async Task<IEnumerable<Cliente>> BuscarAsync(Guid sucursalId, string q, int max = 10)
+    {
+        var ql = q.ToLower();
+        return await _dbSet
+            .Where(c => c.SucursalId == sucursalId && (
+                c.Nombre.ToLower().Contains(ql) ||
+                c.Apellido.ToLower().Contains(ql) ||
+                c.Telefono.Contains(q) ||
+                (c.Email != null && c.Email.ToLower().Contains(ql))
+            ))
+            .OrderBy(c => c.Apellido)
+            .ThenBy(c => c.Nombre)
+            .Take(max)
+            .ToListAsync();
+    }
 }
