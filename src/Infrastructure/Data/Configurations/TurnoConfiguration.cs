@@ -52,6 +52,14 @@ public class TurnoConfiguration : IEntityTypeConfiguration<Turno>
             .HasColumnType("numeric(18,2)")
             .HasDefaultValue(0m);
 
+        builder.Property(t => t.Recordatorio24hEnviado)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(t => t.Recordatorio3hEnviado)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.HasMany(t => t.Comentarios)
             .WithOne(c => c.Turno)
             .HasForeignKey(c => c.TurnoId)

@@ -112,4 +112,23 @@ public class TurnoRepository : GenericRepository<Turno>, ITurnoRepository
                 t.FechaHoraFin < fechaLimite)
             .ToListAsync();
     }
+
+    public async Task<IEnumerable<Turno>> GetParaRecordatoriosAsync(
+        DateTime ahora, DateTime limite24h, DateTime limite3h)
+    {
+        return await _dbSet
+            .Include(t => t.Cliente)
+            .Include(t => t.Servicio)
+            .Include(t => t.Profesional)
+            .Include(t => t.Sucursal)
+            .Where(t =>
+                (t.Estado == EstadoTurno.Confirmado || t.Estado == EstadoTurno.Pendiente) &&
+                t.FechaHoraInicio > ahora &&
+                (
+                    (!t.Recordatorio24hEnviado && t.FechaHoraInicio <= limite24h) ||
+                    (!t.Recordatorio3hEnviado  && t.FechaHoraInicio <= limite3h)
+                ))
+            .OrderBy(t => t.FechaHoraInicio)
+            .ToListAsync();
+    }
 }

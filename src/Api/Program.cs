@@ -44,6 +44,7 @@ builder.Services.AddScoped<IServicioRepository, ServicioRepository>();
 builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
 builder.Services.AddScoped<ITurnoRepository, TurnoRepository>();
 builder.Services.AddScoped<IComentarioTurnoRepository, ComentarioTurnoRepository>();
+builder.Services.AddScoped<IAdjuntoTurnoRepository, AdjuntoTurnoRepository>();
 builder.Services.AddScoped<ICajaRepository, CajaRepository>();
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 
@@ -65,10 +66,13 @@ builder.Services.AddScoped<TurnoService>(sp =>
 builder.Services.AddScoped<CajaService>();
 builder.Services.AddScoped<SuperAdminService>();
 builder.Services.AddScoped<AjustesService>();
+builder.Services.AddScoped<IAdjuntoService, CloudinaryService>();
+builder.Services.AddScoped<AdjuntoTurnoService>();
 builder.Services.AddScoped<PublicoService>();
 builder.Services.AddScoped<InvitacionService>();
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddHostedService<TurnoAutoNoShowService>();
+builder.Services.AddHostedService<RecordatoriosEmailBackgroundService>();
 builder.Services.AddScoped<AuthService>(sp =>
 {
     var repo    = sp.GetRequiredService<IUsuarioRepository>();
