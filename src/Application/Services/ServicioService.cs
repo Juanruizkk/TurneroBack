@@ -19,9 +19,9 @@ public class ServicioService
         return servicios.Select(MapToResponse);
     }
 
-    public async Task<IEnumerable<ServicioResponseDto>> GetBySucursalAsync(Guid sucursalId)
+    public async Task<IEnumerable<ServicioResponseDto>> GetBySucursalAsync(Guid sucursalId, bool incluirInactivos = false)
     {
-        var servicios = await _servicioRepository.GetBySucursalAsync(sucursalId);
+        var servicios = await _servicioRepository.GetBySucursalAsync(sucursalId, incluirInactivos);
         return servicios.Select(MapToResponse);
     }
 
@@ -79,12 +79,13 @@ public class ServicioService
         return MapToResponse(servicio);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DesactivarAsync(Guid id)
     {
         var servicio = await _servicioRepository.GetByIdAsync(id);
         if (servicio is null) return false;
 
-        _servicioRepository.Delete(servicio);
+        servicio.Activo = false;
+        _servicioRepository.Update(servicio);
         await _servicioRepository.SaveChangesAsync();
         return true;
     }

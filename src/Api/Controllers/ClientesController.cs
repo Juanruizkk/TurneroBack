@@ -23,9 +23,16 @@ public class ClientesController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<ClienteResponseDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(
         [FromQuery] Guid? sucursalId,
+        [FromQuery] string? q,
         [FromQuery] string? telefono,
         [FromQuery] string? email)
     {
+        if (sucursalId.HasValue && !string.IsNullOrWhiteSpace(q))
+        {
+            var resultados = await _clienteService.BuscarAsync(sucursalId.Value, q);
+            return Ok(resultados);
+        }
+
         if (sucursalId.HasValue && !string.IsNullOrWhiteSpace(telefono))
         {
             var porTel = await _clienteService.BuscarPorTelefonoAsync(sucursalId.Value, telefono);

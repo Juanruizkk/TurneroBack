@@ -13,6 +13,7 @@ public class TurnoService
     private readonly ISucursalRepository          _sucursalRepository;
     private readonly IEmailService                _emailService;
     private readonly IComentarioTurnoRepository   _comentarioRepository;
+    private readonly string                       _frontendUrl;
 
     public TurnoService(
         ITurnoRepository turnoRepository,
@@ -20,7 +21,8 @@ public class TurnoService
         IClienteRepository clienteRepository,
         ISucursalRepository sucursalRepository,
         IEmailService emailService,
-        IComentarioTurnoRepository comentarioRepository)
+        IComentarioTurnoRepository comentarioRepository,
+        string frontendUrl)
     {
         _turnoRepository      = turnoRepository;
         _servicioRepository   = servicioRepository;
@@ -28,6 +30,7 @@ public class TurnoService
         _sucursalRepository   = sucursalRepository;
         _emailService         = emailService;
         _comentarioRepository = comentarioRepository;
+        _frontendUrl          = frontendUrl;
     }
 
     public async Task<IEnumerable<TurnoResponseDto>> GetAllAsync()
@@ -126,6 +129,7 @@ public class TurnoService
                     ? $"{turnoCompleto.Profesional.Nombre} {turnoCompleto.Profesional.Apellido}".Trim()
                     : string.Empty;
 
+                var cancelUrl = $"{_frontendUrl.TrimEnd('/')}/turno/{turno.TokenGestion}";
                 await _emailService.EnviarConfirmacionTurnoAsync(
                     cliente.Email,
                     $"{cliente.Nombre} {cliente.Apellido}".Trim(),
@@ -133,7 +137,8 @@ public class TurnoService
                     servicio.Nombre,
                     profesionalNombre,
                     turno.FechaHoraInicio,
-                    turno.FechaHoraFin);
+                    turno.FechaHoraFin,
+                    cancelUrl);
             }
             catch
             {
@@ -199,6 +204,55 @@ public class TurnoService
 
         _turnoRepository.Update(turno);
         await _turnoRepository.SaveChangesAsync();
+
+        // ─── Notificaciones de cancelación ────────────────────────────────────
+        var estadoNuevo = dto.Estado;
+        if ((estadoNuevo == EstadoTurno.CanceladoStaff || estadoNuevo == EstadoTurno.CanceladoCliente)
+            && turno.Cliente is not null
+            && !string.IsNullOrWhiteSpace(turno.Cliente.Email))
+        {
+            var sucursalInfo = await _sucursalRepository.GetByIdAsync(turno.SucursalId);
+            var sucursalNombre = sucursalInfo?.Nombre ?? "TurneroApp";
+            var servicioNombre = turno.Servicio?.Nombre ?? string.Empty;
+            var clienteNombre  = $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim();
+            var clienteEmail   = turno.Cliente.Email;
+
+            try
+            {
+                if (estadoNuevo == EstadoTurno.CanceladoStaff)
+                {
+                    await _emailService.EnviarCancelacionStaffAsync(
+                        clienteEmail, clienteNombre, sucursalNombre, servicioNombre, turno.FechaHoraInicio);
+                }
+                else // CanceladoCliente
+                {
+                    await _emailService.EnviarCancelacionClienteAsync(
+                        clienteEmail, clienteNombre, sucursalNombre, servicioNombre, turno.FechaHoraInicio);
+
+                    // Alerta al profesional (o email de sucursal como fallback)
+                    var profesional = turno.Profesional;
+                    var alertaEmail = !string.IsNullOrWhiteSpace(profesional?.Email)
+                        ? profesional!.Email
+                        : sucursalInfo?.Email;
+
+                    if (!string.IsNullOrWhiteSpace(alertaEmail))
+                    {
+                        var alertaNombre = profesional is not null
+                            ? $"{profesional.Nombre} {profesional.Apellido}".Trim()
+                            : sucursalNombre;
+
+                        await _emailService.EnviarAlertaLiberacionAgendaAsync(
+                            alertaEmail, alertaNombre, sucursalNombre, servicioNombre,
+                            clienteNombre, turno.FechaHoraInicio);
+                    }
+                }
+            }
+            catch
+            {
+                // El email es no-crítico
+            }
+        }
+
         return MapToResponse(turno);
     }
 

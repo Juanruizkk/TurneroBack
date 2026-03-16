@@ -13,4 +13,10 @@ public interface ITurnoRepository : IGenericRepository<Turno>
 
     /// <summary>Turnos activos de una sucursal entre dos fechas (para cálculo de slots).</summary>
     Task<IEnumerable<Turno>> GetActivosSucursalEnRangoAsync(Guid sucursalId, DateTime desde, DateTime hasta);
+
+    /// <summary>
+    /// Turnos en estado Confirmado o Pendiente cuya FechaHoraFin es anterior a <paramref name="fechaLimite"/>.
+    /// Usado por el job de auto-NoShow.
+    /// </summary>
+    Task<IEnumerable<Turno>> GetConfirmadosPendientesAntesDeAsync(DateTime fechaLimite);
 }

@@ -44,10 +44,48 @@ public class EmailService : IEmailService
         string servicioNombre,
         string profesionalNombre,
         DateTime fechaHoraInicio,
-        DateTime fechaHoraFin)
+        DateTime fechaHoraFin,
+        string cancelUrl)
     {
         var asunto = $"Turno confirmado en {nombreSucursal} — {fechaHoraInicio:dd/MM/yyyy HH:mm}";
-        var cuerpo = PlantillaConfirmacionTurno(destinatarioNombre, nombreSucursal, servicioNombre, profesionalNombre, fechaHoraInicio, fechaHoraFin);
+        var cuerpo = PlantillaConfirmacionTurno(destinatarioNombre, nombreSucursal, servicioNombre, profesionalNombre, fechaHoraInicio, fechaHoraFin, cancelUrl);
+        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+    }
+
+    public Task EnviarCancelacionStaffAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        DateTime fechaHoraInicio)
+    {
+        var asunto = $"Tu turno en {nombreSucursal} fue cancelado";
+        var cuerpo = PlantillaCancelacionStaff(destinatarioNombre, nombreSucursal, servicioNombre, fechaHoraInicio);
+        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+    }
+
+    public Task EnviarCancelacionClienteAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        DateTime fechaHoraInicio)
+    {
+        var asunto = $"Cancelación confirmada — {nombreSucursal}";
+        var cuerpo = PlantillaCancelacionCliente(destinatarioNombre, nombreSucursal, servicioNombre, fechaHoraInicio);
+        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+    }
+
+    public Task EnviarAlertaLiberacionAgendaAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string clienteNombre,
+        DateTime fechaHoraInicio)
+    {
+        var asunto = $"Slot liberado — {servicioNombre} el {fechaHoraInicio:dd/MM HH:mm}";
+        var cuerpo = PlantillaAlertaLiberacion(destinatarioNombre, nombreSucursal, servicioNombre, clienteNombre, fechaHoraInicio);
         return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
     }
 
@@ -88,10 +126,29 @@ public class EmailService : IEmailService
         string servicio,
         string profesional,
         DateTime inicio,
-        DateTime fin)
+        DateTime fin,
+        string cancelUrl)
     {
         var fechaStr = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-AR"));
         var horaStr  = $"{inicio:HH:mm} – {fin:HH:mm}";
+
+        var cancelBlock = string.IsNullOrWhiteSpace(cancelUrl) ? string.Empty : $"""
+                        <!-- Cancel link -->
+                        <table cellpadding="0" cellspacing="0" style="margin-top:20px;">
+                          <tr>
+                            <td style="border-radius:8px;border:1.5px solid #f1b5c0;">
+                              <a href="{cancelUrl}"
+                                 style="display:inline-block;padding:11px 28px;color:#B4697B;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
+                                Cancelar mi turno
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:12px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5;">
+                          Si no querés cancelar, ignorá este mensaje. El enlace de cancelación
+                          es personal y no lo compartas.
+                        </p>
+            """;
 
         return $"""
             <!DOCTYPE html>
@@ -158,9 +215,7 @@ public class EmailService : IEmailService
                           </tr>
                         </table>
 
-                        <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;">
-                          Si necesitás cancelar o reprogramar, contactanos con anticipación.
-                        </p>
+                        {cancelBlock}
                       </td>
                     </tr>
 
@@ -173,6 +228,238 @@ public class EmailService : IEmailService
                       </td>
                     </tr>
 
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string PlantillaCancelacionStaff(
+        string nombre,
+        string sucursal,
+        string servicio,
+        DateTime inicio)
+    {
+        var fechaStr = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-AR"));
+        var horaStr  = inicio.ToString("HH:mm");
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Turno cancelado</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+                <tr><td align="center">
+                  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                    <tr>
+                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
+                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">✦ {sucursal}</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px;">
+                        <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">Tu turno fue cancelado</h2>
+                        <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">
+                          Hola <strong>{nombre}</strong>, lamentamos informarte que tu turno fue cancelado por el equipo de {sucursal}.
+                        </p>
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                               style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:28px;">
+                          <tr>
+                            <td style="padding:24px 28px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Servicio</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{servicio}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Fecha</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{fechaStr}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;">
+                                    <span style="font-size:13px;color:#71717a;">Horario</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{horaStr}</strong>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:0;font-size:14px;color:#52525b;line-height:1.6;">
+                          Si querés reprogramar tu turno, no dudes en contactarnos o reservar nuevamente.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por TurneroApp.</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string PlantillaCancelacionCliente(
+        string nombre,
+        string sucursal,
+        string servicio,
+        DateTime inicio)
+    {
+        var fechaStr = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-AR"));
+        var horaStr  = inicio.ToString("HH:mm");
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Cancelación confirmada</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+                <tr><td align="center">
+                  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                    <tr>
+                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
+                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">✦ {sucursal}</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px;">
+                        <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">Cancelación confirmada</h2>
+                        <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">
+                          Hola <strong>{nombre}</strong>, tu cancelación fue registrada correctamente.
+                        </p>
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                               style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:28px;">
+                          <tr>
+                            <td style="padding:24px 28px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Servicio</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{servicio}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Fecha</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{fechaStr}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;">
+                                    <span style="font-size:13px;color:#71717a;">Horario</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{horaStr}</strong>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:0;font-size:14px;color:#52525b;line-height:1.6;">
+                          Esperamos verte pronto. Podés reservar un nuevo turno cuando quieras.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por TurneroApp.</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string PlantillaAlertaLiberacion(
+        string nombre,
+        string sucursal,
+        string servicio,
+        string clienteNombre,
+        DateTime inicio)
+    {
+        var fechaStr = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-AR"));
+        var horaStr  = inicio.ToString("HH:mm");
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Slot liberado en agenda</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+                <tr><td align="center">
+                  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                    <tr>
+                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
+                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">✦ {sucursal}</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px;">
+                        <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">Slot liberado en tu agenda</h2>
+                        <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">
+                          Hola <strong>{nombre}</strong>, el cliente <strong>{clienteNombre}</strong> canceló su turno. El horario quedó disponible.
+                        </p>
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                               style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:28px;">
+                          <tr>
+                            <td style="padding:24px 28px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Servicio</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{servicio}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Fecha</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{fechaStr}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;">
+                                    <span style="font-size:13px;color:#71717a;">Horario liberado</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{horaStr}</strong>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:0;font-size:14px;color:#52525b;line-height:1.6;">
+                          Este horario ya está disponible para nuevas reservas.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por TurneroApp.</p>
+                      </td>
+                    </tr>
                   </table>
                 </td></tr>
               </table>

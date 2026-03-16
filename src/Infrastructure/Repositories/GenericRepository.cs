@@ -35,6 +35,11 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
         _dbSet.Update(entity);
     }
 
+    public void UpdateRange(IEnumerable<T> entities)
+    {
+        _dbSet.UpdateRange(entities);
+    }
+
     public void Delete(T entity)
     {
         _dbSet.Remove(entity);

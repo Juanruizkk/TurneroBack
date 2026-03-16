@@ -11,10 +11,10 @@ public class ServicioRepository : GenericRepository<Servicio>, IServicioReposito
     {
     }
 
-    public async Task<IEnumerable<Servicio>> GetBySucursalAsync(Guid sucursalId)
+    public async Task<IEnumerable<Servicio>> GetBySucursalAsync(Guid sucursalId, bool incluirInactivos = false)
     {
         return await _dbSet
-            .Where(s => s.SucursalId == sucursalId)
+            .Where(s => s.SucursalId == sucursalId && (incluirInactivos || s.Activo))
             .OrderBy(s => s.Nombre)
             .ToListAsync();
     }

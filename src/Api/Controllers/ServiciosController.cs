@@ -21,11 +21,11 @@ public class ServiciosController : ControllerBase
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<ServicioResponseDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? sucursalId)
+    public async Task<IActionResult> GetAll([FromQuery] Guid? sucursalId, [FromQuery] bool incluirInactivos = false)
     {
         if (sucursalId.HasValue)
         {
-            var porSucursal = await _servicioService.GetBySucursalAsync(sucursalId.Value);
+            var porSucursal = await _servicioService.GetBySucursalAsync(sucursalId.Value, incluirInactivos);
             return Ok(porSucursal);
         }
 
@@ -77,15 +77,15 @@ public class ServiciosController : ControllerBase
     }
 
     /// <summary>
-    /// Elimina un servicio.
+    /// Desactiva un servicio (soft-delete). Los turnos existentes se mantienen intactos.
     /// </summary>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var deleted = await _servicioService.DeleteAsync(id);
-        if (!deleted) return NotFound(new { message = $"Servicio con Id {id} no encontrado." });
+        var ok = await _servicioService.DesactivarAsync(id);
+        if (!ok) return NotFound(new { message = $"Servicio con Id {id} no encontrado." });
         return NoContent();
     }
 }

@@ -43,6 +43,12 @@ public class ClienteService
         return cliente is null ? null : MapToResponse(cliente);
     }
 
+    public async Task<IEnumerable<ClienteResponseDto>> BuscarAsync(Guid sucursalId, string q)
+    {
+        var resultados = await _clienteRepository.BuscarAsync(sucursalId, q.Trim());
+        return resultados.Select(MapToResponse);
+    }
+
     public async Task<ClienteResponseDto> CreateAsync(CreateClienteDto dto)
     {
         var cliente = new Cliente
