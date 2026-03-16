@@ -89,6 +89,23 @@ public class EmailService : IEmailService
         return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
     }
 
+    public Task EnviarRecordatorioAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string profesionalNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string cancelUrl,
+        bool es24h)
+    {
+        var etiqueta = es24h ? "mañana" : "en 3 horas";
+        var asunto   = $"Recordatorio: tu turno en {nombreSucursal} es {etiqueta} — {fechaHoraInicio:dd/MM HH:mm}";
+        var cuerpo   = PlantillaRecordatorio(destinatarioNombre, nombreSucursal, servicioNombre, profesionalNombre, fechaHoraInicio, fechaHoraFin, cancelUrl, es24h);
+        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+    }
+
     // ─── Core SMTP ────────────────────────────────────────────────────────────
 
     private async Task EnviarAsync(
@@ -460,6 +477,132 @@ public class EmailService : IEmailService
                         <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por TurneroApp.</p>
                       </td>
                     </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string PlantillaRecordatorio(
+        string nombre,
+        string sucursal,
+        string servicio,
+        string profesional,
+        DateTime inicio,
+        DateTime fin,
+        string cancelUrl,
+        bool es24h)
+    {
+        var cultura   = new System.Globalization.CultureInfo("es-AR");
+        var fechaStr  = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", cultura);
+        var horaStr   = $"{inicio:HH:mm} – {fin:HH:mm}";
+        var badge     = es24h ? "Recordatorio — mañana" : "Recordatorio — en 3 horas";
+        var badgeColor = es24h ? "#6366f1" : "#f59e0b";
+        var intro = es24h
+            ? $"Hola <strong>{nombre}</strong>, te recordamos que mañana tenés un turno reservado."
+            : $"Hola <strong>{nombre}</strong>, en menos de 3 horas tenés tu turno. ¡No lo olvides!";
+
+        var cancelBlock = string.IsNullOrWhiteSpace(cancelUrl) ? string.Empty : $"""
+                        <table cellpadding="0" cellspacing="0" style="margin-top:20px;">
+                          <tr>
+                            <td style="border-radius:8px;border:1.5px solid #f1b5c0;">
+                              <a href="{cancelUrl}"
+                                 style="display:inline-block;padding:11px 28px;color:#B4697B;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
+                                Cancelar mi turno
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:12px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5;">
+                          Si no querés cancelar, ignorá este mensaje. El enlace es personal, no lo compartas.
+                        </p>
+            """;
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Recordatorio de turno</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+                <tr><td align="center">
+                  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+
+                    <!-- Header -->
+                    <tr>
+                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
+                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
+                          ✦ {sucursal}
+                        </p>
+                      </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                      <td style="padding:40px;">
+                        <!-- Badge -->
+                        <p style="margin:0 0 20px;display:inline-block;">
+                          <span style="background:{badgeColor};color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.5px;padding:4px 12px;border-radius:999px;text-transform:uppercase;">
+                            {badge}
+                          </span>
+                        </p>
+
+                        <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">No olvides tu turno</h2>
+                        <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">{intro}</p>
+
+                        <!-- Detail card -->
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                               style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:28px;">
+                          <tr>
+                            <td style="padding:24px 28px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Servicio</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{servicio}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Profesional</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{profesional}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Fecha</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{fechaStr}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;">
+                                    <span style="font-size:13px;color:#71717a;">Horario</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{horaStr}</strong>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+
+                        {cancelBlock}
+                      </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
+                          Este recordatorio fue generado automáticamente por TurneroApp.
+                        </p>
+                      </td>
+                    </tr>
+
                   </table>
                 </td></tr>
               </table>

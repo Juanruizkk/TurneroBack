@@ -13,12 +13,26 @@ public class AdjuntoTurnoConfiguration : IEntityTypeConfiguration<AdjuntoTurno>
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id).ValueGeneratedNever();
 
-        builder.Property(a => a.UrlArchivo)
+        // Columna renombrada en C# (Url) pero mantiene el nombre físico UrlArchivo en DB
+        builder.Property(a => a.Url)
             .IsRequired()
-            .HasMaxLength(1000);
+            .HasMaxLength(2000)
+            .HasColumnName("UrlArchivo");
 
-        builder.Property(a => a.Descripcion)
-            .HasMaxLength(500);
+        builder.Property(a => a.PublicId)
+            .IsRequired()
+            .HasMaxLength(500)
+            .HasDefaultValue(string.Empty);
+
+        builder.Property(a => a.NombreArchivo)
+            .IsRequired()
+            .HasMaxLength(500)
+            .HasDefaultValue(string.Empty);
+
+        builder.Property(a => a.TipoRecurso)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasDefaultValue("image");
 
         builder.Property(a => a.Fecha)
             .IsRequired();

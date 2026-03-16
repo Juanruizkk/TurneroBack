@@ -30,20 +30,38 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Property<Guid>("AutorUsuarioId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Descripcion")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<DateTime>("Fecha")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NombreArchivo")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("PublicId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("TipoRecurso")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("image");
 
                     b.Property<Guid>("TurnoId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("UrlArchivo")
+                    b.Property<string>("Url")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("UrlArchivo");
 
                     b.HasKey("Id");
 
@@ -496,6 +514,16 @@ namespace TurneroApp.Infrastructure.Migrations
 
                     b.Property<Guid>("ProfesionalId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("Recordatorio24hEnviado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("Recordatorio3hEnviado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<Guid>("ServicioId")
                         .HasColumnType("uuid");

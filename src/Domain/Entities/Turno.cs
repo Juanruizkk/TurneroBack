@@ -19,6 +19,9 @@ public class Turno
     public decimal? MontoSena { get; set; }
     public decimal TotalCobrado { get; set; }
 
+    public bool Recordatorio24hEnviado { get; set; } = false;
+    public bool Recordatorio3hEnviado  { get; set; } = false;
+
     // Navigation properties
     public Sucursal Sucursal { get; set; } = null!;
     public Cliente Cliente { get; set; } = null!;

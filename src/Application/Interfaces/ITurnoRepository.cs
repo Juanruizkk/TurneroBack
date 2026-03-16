@@ -19,4 +19,12 @@ public interface ITurnoRepository : IGenericRepository<Turno>
     /// Usado por el job de auto-NoShow.
     /// </summary>
     Task<IEnumerable<Turno>> GetConfirmadosPendientesAntesDeAsync(DateTime fechaLimite);
+
+    /// <summary>
+    /// Turnos que deben recibir un recordatorio por email:
+    /// estado Confirmado o Pendiente, inicio futuro, y al menos un flag de recordatorio sin enviar
+    /// dentro de las ventanas de <paramref name="limite24h"/> o <paramref name="limite3h"/>.
+    /// Incluye Cliente, Servicio, Profesional y Sucursal para construir el email.
+    /// </summary>
+    Task<IEnumerable<Turno>> GetParaRecordatoriosAsync(DateTime ahora, DateTime limite24h, DateTime limite3h);
 }

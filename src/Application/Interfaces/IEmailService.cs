@@ -48,4 +48,19 @@ public interface IEmailService
         string servicioNombre,
         string clienteNombre,
         DateTime fechaHoraInicio);
+
+    /// <summary>
+    /// Recordatorio automático enviado antes del turno.
+    /// <paramref name="es24h"/>: <c>true</c> para el recordatorio de 24 h, <c>false</c> para el de 3 h.
+    /// </summary>
+    Task EnviarRecordatorioAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string profesionalNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string cancelUrl,
+        bool es24h);
 }

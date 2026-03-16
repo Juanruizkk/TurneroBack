@@ -170,4 +170,40 @@ public class ConsoleEmailService : IEmailService
 
         return Task.CompletedTask;
     }
+
+    public Task EnviarRecordatorioAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string profesionalNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string cancelUrl,
+        bool es24h)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║      [DEV] EMAIL RECORDATORIO {Tipo}                 ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:        {Email}
+            ║  Cliente:     {Nombre}
+            ║  Sucursal:    {Sucursal}
+            ║  Servicio:    {Servicio}
+            ║  Profesional: {Profesional}
+            ║  Inicio:      {Inicio}
+            ║  Fin:         {Fin}
+            ║  Cancelar:    {CancelUrl}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            es24h ? "24 H" : "3 H",
+            destinatarioEmail, destinatarioNombre, nombreSucursal,
+            servicioNombre, profesionalNombre,
+            fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"),
+            fechaHoraFin.ToString("HH:mm"),
+            cancelUrl);
+
+        return Task.CompletedTask;
+    }
 }
