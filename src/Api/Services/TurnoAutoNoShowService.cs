@@ -17,7 +17,7 @@ public class TurnoAutoNoShowService : BackgroundService
         ILogger<TurnoAutoNoShowService> logger)
     {
         _scopeFactory = scopeFactory;
-        _logger       = logger;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -26,9 +26,9 @@ public class TurnoAutoNoShowService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var ahora        = DateTime.Now;
-            var proximas3AM  = ahora.Date.AddDays(ahora.Hour < 3 ? 0 : 1).AddHours(3);
-            var espera       = proximas3AM - ahora;
+            var ahora = DateTime.Now;
+            var proximas3AM = ahora.Date.AddDays(ahora.Hour < 3 ? 0 : 1).AddHours(3);
+            var espera = proximas3AM - ahora;
 
             _logger.LogInformation(
                 "TurnoAutoNoShowService: próxima ejecución en {Espera:hh\\:mm\\:ss} (a las {Hora}).",
@@ -39,10 +39,11 @@ public class TurnoAutoNoShowService : BackgroundService
             if (stoppingToken.IsCancellationRequested) break;
 
             await EjecutarAsync(stoppingToken);
+
         }
     }
 
-    private async Task EjecutarAsync(CancellationToken ct)
+    internal async Task EjecutarAsync(CancellationToken ct)
     {
         _logger.LogInformation("TurnoAutoNoShowService: iniciando marcado de NoShow.");
 
@@ -52,7 +53,7 @@ public class TurnoAutoNoShowService : BackgroundService
             var repo = scope.ServiceProvider.GetRequiredService<ITurnoRepository>();
 
             // Todos los turnos Confirmado/Pendiente con FechaHoraFin antes de hoy a las 00:00
-            var fechaLimite = DateTime.UtcNow.Date;
+            var fechaLimite = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 0, 0, 0, DateTimeKind.Unspecified);
             var turnos = (await repo.GetConfirmadosPendientesAntesDeAsync(fechaLimite)).ToList();
 
             if (turnos.Count == 0)

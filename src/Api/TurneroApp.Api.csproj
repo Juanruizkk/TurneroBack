@@ -5,6 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>TurneroApp.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Application\TurneroApp.Application.csproj" />
     <ProjectReference Include="..\Infrastructure\TurneroApp.Infrastructure.csproj" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
