@@ -51,4 +51,11 @@ public class ActualizarAjustesDto
     public bool EnviaRecordatorioEmail { get; set; }
     public bool EnviaRecordatorioWhatsapp { get; set; }
     public ModoConfirmacionTurnos ModoConfirmacionTurnos { get; set; }
+
+    // ─── Plantillas de mensaje WhatsApp ───────────────────────────────────────
+    [MaxLength(2000)]
+    public string? MensajeWhatsApp24h { get; set; }
+
+    [MaxLength(2000)]
+    public string? MensajeWhatsApp3h { get; set; }
 }

@@ -55,6 +55,14 @@ public class ConfiguracionSucursalConfiguration : IEntityTypeConfiguration<Confi
             .IsRequired()
             .HasDefaultValueSql("'{}'::jsonb");
 
+        builder.Property(c => c.MensajeWhatsApp24h)
+            .HasMaxLength(2000)
+            .IsRequired(false);
+
+        builder.Property(c => c.MensajeWhatsApp3h)
+            .HasMaxLength(2000)
+            .IsRequired(false);
+
         builder.HasOne(c => c.Sucursal)
             .WithOne(s => s.ConfiguracionSucursal)
             .HasForeignKey<ConfiguracionSucursal>(c => c.SucursalId)

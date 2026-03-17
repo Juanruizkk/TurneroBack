@@ -21,6 +21,18 @@ public class ConfiguracionSucursal
     /// </summary>
     public string HorariosAtencionJson { get; set; } = "{}";
 
+    /// <summary>
+    /// Plantilla de mensaje para el recordatorio de WhatsApp enviado 24 h antes.
+    /// Variables disponibles: {{ClienteNombre}}, {{Servicio}}, {{Fecha}}, {{Hora}}.
+    /// </summary>
+    public string? MensajeWhatsApp24h { get; set; }
+
+    /// <summary>
+    /// Plantilla de mensaje para el recordatorio de WhatsApp enviado 3 h antes.
+    /// Variables disponibles: {{ClienteNombre}}, {{Servicio}}, {{Fecha}}, {{Hora}}.
+    /// </summary>
+    public string? MensajeWhatsApp3h { get; set; }
+
     // Navigation properties
     public Sucursal Sucursal { get; set; } = null!;
 }

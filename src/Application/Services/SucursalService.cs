@@ -7,10 +7,12 @@ namespace TurneroApp.Application.Services;
 public class SucursalService
 {
     private readonly ISucursalRepository _sucursalRepository;
+    private readonly ICajaRepository     _cajaRepository;
 
-    public SucursalService(ISucursalRepository sucursalRepository)
+    public SucursalService(ISucursalRepository sucursalRepository, ICajaRepository cajaRepository)
     {
         _sucursalRepository = sucursalRepository;
+        _cajaRepository     = cajaRepository;
     }
 
     public async Task<IEnumerable<SucursalResponseDto>> GetAllAsync()
@@ -35,15 +37,25 @@ public class SucursalService
     {
         var sucursal = new Sucursal
         {
-            Id = Guid.NewGuid(),
-            Nombre = dto.Nombre,
+            Id        = Guid.NewGuid(),
+            Nombre    = dto.Nombre,
             Direccion = dto.Direccion,
-            Telefono = dto.Telefono,
-            Email = dto.Email,
-            Activa = true
+            Telefono  = dto.Telefono,
+            Email     = dto.Email,
+            Activa    = true,
         };
 
         await _sucursalRepository.AddAsync(sucursal);
+
+        // Toda sucursal nace con su caja
+        await _cajaRepository.AddAsync(new Caja
+        {
+            Id         = Guid.NewGuid(),
+            SucursalId = sucursal.Id,
+            Nombre     = $"Caja — {dto.Nombre}",
+            Activa     = true,
+        });
+
         await _sucursalRepository.SaveChangesAsync();
         return MapToResponse(sucursal);
     }

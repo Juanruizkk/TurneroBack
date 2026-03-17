@@ -1,12 +1,12 @@
-# Tests unitarios — TurnoService
+# Tests unitarios — TurnoService y AdjuntoTurnoService
 
 ## Descripción general
 
-Tests que verifican la lógica de negocio de `TurnoService` de forma completamente aislada: sin base de datos, sin SMTP, sin ninguna dependencia de infraestructura.
+Tests que verifican la lógica de negocio de `TurnoService` y `AdjuntoTurnoService` de forma completamente aislada: sin base de datos, sin SMTP, sin Cloudinary, sin ninguna dependencia de infraestructura.
 
 **Proyecto:** `tests/TurneroApp.Tests/`
 **Framework:** xUnit 2.6 + Moq 4.20 + FluentAssertions 6.12
-**Cobertura:** 29 tests — `CreateAsync`, `UpdateEstadoAsync`, `CrearComentarioAsync`, `EliminarComentarioAsync`
+**Cobertura:** 40 tests — `CreateAsync`, `UpdateEstadoAsync`, `CrearComentarioAsync`, `EliminarComentarioAsync`, `ListarAsync`, `SubirAsync`, `EliminarAsync`
 
 ---
 
@@ -21,9 +21,10 @@ tests/
     ├── Helpers/
     │   └── TurnoTestFactory.cs        ← fábrica de entidades de prueba
     └── Services/
-        ├── TurnoServiceCreateTests.cs      (15 tests)
-        ├── TurnoServiceUpdateTests.cs      (8 tests)
-        └── TurnoServiceComentariosTests.cs (6 tests)
+        ├── TurnoServiceCreateTests.cs          (15 tests)
+        ├── TurnoServiceUpdateTests.cs          (8 tests)
+        ├── TurnoServiceComentariosTests.cs     (6 tests)
+        └── AdjuntoTurnoServiceTests.cs         (11 tests)
 ```
 
 ---
@@ -35,11 +36,13 @@ cd backend
 dotnet test tests/TurneroApp.Tests/TurneroApp.Tests.csproj --verbosity normal
 ```
 
-Resultado esperado: **29 passed, 0 failed** en ~3 segundos.
+Resultado esperado: **40 passed, 0 failed** en ~3 segundos.
 
 ---
 
 ## Dependencias mockeadas
+
+### TurnoService (6 mocks)
 
 Todos los tests instancian `TurnoService` con mocks de sus 6 dependencias:
 
@@ -51,6 +54,13 @@ Todos los tests instancian `TurnoService` con mocks de sus 6 dependencias:
 | `ISucursalRepository` | Repositorio | Config de confirmación, datos para emails |
 | `IEmailService` | Servicio externo | Envío de confirmaciones y cancelaciones |
 | `IComentarioTurnoRepository` | Repositorio | CRUD de comentarios |
+
+### AdjuntoTurnoService (2 mocks)
+
+| Dependencia | Tipo | Qué se mockea |
+|---|---|---|
+| `IAdjuntoTurnoRepository` | Repositorio | CRUD de adjuntos |
+| `IAdjuntoService` | Servicio externo | Subida y eliminación en Cloudinary |
 
 ---
 
@@ -162,6 +172,40 @@ Patrón de cada test: **Arrange / Act / Assert** con mocks de repositorios.
 
 ---
 
+---
+
+## AdjuntoTurnoServiceTests — `ListarAsync` / `SubirAsync` / `EliminarAsync`
+
+Patrón de cada test: **Arrange / Act / Assert** con mocks de `IAdjuntoTurnoRepository` e `IAdjuntoService` (Cloudinary).
+
+### ListarAsync
+
+| Test | Qué verifica |
+|---|---|
+| `Listar_SinAdjuntos_RetornaListaVacia` | Si el repositorio retorna lista vacía, el resultado también es vacío |
+| `Listar_ConAdjuntos_MapeoEsCorrecto` | Todos los campos del `AdjuntoTurno` se mapean correctamente al DTO (`Id`, `TurnoId`, `Url`, `PublicId`, `NombreArchivo`, `TipoRecurso`) |
+
+### SubirAsync
+
+| Test | Qué verifica |
+|---|---|
+| `Subir_Imagen_RetornaDtoConDatosDeCloudinary` | El DTO devuelto refleja la `Url`, `PublicId` y `TipoRecurso` retornados por Cloudinary |
+| `Subir_Pdf_TipoRecursoEsRaw` | Con `contentType = "application/pdf"`, el DTO tiene `TipoRecurso == "raw"` |
+| `Subir_PersisteDespuesDeCloudinary` | El orden de llamadas es estrictamente: `SubirArchivoAsync` → `AddAsync` → `SaveChangesAsync` |
+| `Subir_CloudinaryFalla_NoPersiste` | Si `SubirArchivoAsync` lanza excepción, `AddAsync` y `SaveChangesAsync` nunca se llaman |
+
+### EliminarAsync
+
+| Test | Qué verifica |
+|---|---|
+| `Eliminar_AdjuntoNoExiste_RetornaFalse` | Si `GetByIdAsync` retorna `null`, el método retorna `false` y Cloudinary nunca es llamado |
+| `Eliminar_AdjuntoExiste_RetornaTrue` | Happy path: el método retorna `true` |
+| `Eliminar_LlamaCloudinaryConPublicIdYTipoRecursoCorrectos` | Cloudinary recibe exactamente el `PublicId` y `TipoRecurso` almacenados en la entidad |
+| `Eliminar_BorraDbDespuesDeCloudinary` | El orden es estrictamente: `EliminarArchivoAsync` → `SaveChangesAsync` |
+| `Eliminar_CloudinaryFalla_NoEliminaDeDb` | Si Cloudinary lanza excepción, `Delete` y `SaveChangesAsync` nunca se llaman (el registro queda en DB para reintentar) |
+
+---
+
 ## Reglas de negocio cubiertas
 
 | Regla | Test(s) |
@@ -174,3 +218,8 @@ Patrón de cada test: **Arrange / Act / Assert** con mocks de repositorios.
 | Emails son no-críticos (nunca bloquean la operación) | `Create_EmailFalla`, `Update_EmailCancelacion_Falla` |
 | `CanceladoCliente` notifica al profesional o a la sucursal | `Update_CanceladoCliente_EnviaEmailAlClienteYAlProfesional` |
 | Solo el autor puede eliminar su comentario | `EliminarComentario_DeOtroAutor_LanzaException` |
+| Cloudinary se llama antes de persistir en DB (subida) | `Subir_PersisteDespuesDeCloudinary` |
+| Si Cloudinary falla al subir, la DB no se toca | `Subir_CloudinaryFalla_NoPersiste` |
+| El tipo de recurso (`image`/`raw`) se preserva y se usa al borrar | `Subir_Pdf_TipoRecursoEsRaw`, `Eliminar_LlamaCloudinaryConPublicIdYTipoRecursoCorrectos` |
+| Cloudinary se borra antes que la DB (eliminación) | `Eliminar_BorraDbDespuesDeCloudinary` |
+| Si Cloudinary falla al borrar, el registro queda en DB | `Eliminar_CloudinaryFalla_NoEliminaDeDb` |

@@ -12,6 +12,11 @@
     <PackageReference Include="FluentAssertions"              Version="6.12.0" />
   </ItemGroup>
   <ItemGroup>
+    <!-- UseAppHost=false evita que MSBuild intente copiar el .exe del host
+         cuando la API está corriendo con dotnet watch y tiene el proceso bloqueado. -->
+    <ProjectReference Include="..\..\src\Api\TurneroApp.Api.csproj">
+      <Properties>UseAppHost=false</Properties>
+    </ProjectReference>
     <ProjectReference Include="..\..\src\Application\TurneroApp.Application.csproj" />
     <ProjectReference Include="..\..\src\Domain\TurneroApp.Domain.csproj" />
   </ItemGroup>
