@@ -29,4 +29,10 @@ public class AjustesSucursalDto
     public bool EnviaRecordatorioEmail { get; set; }
     public bool EnviaRecordatorioWhatsapp { get; set; }
     public ModoConfirmacionTurnos ModoConfirmacionTurnos { get; set; }
+
+    // ─── Plantillas de mensaje WhatsApp ───────────────────────────────────────
+    /// <summary>Variables: {{ClienteNombre}}, {{Servicio}}, {{Fecha}}, {{Hora}}</summary>
+    public string? MensajeWhatsApp24h { get; set; }
+    /// <summary>Variables: {{ClienteNombre}}, {{Servicio}}, {{Fecha}}, {{Hora}}</summary>
+    public string? MensajeWhatsApp3h { get; set; }
 }

@@ -72,6 +72,8 @@ public class AjustesService
             EnviaRecordatorioEmail           = config?.EnviaRecordatorioEmail ?? false,
             EnviaRecordatorioWhatsapp        = config?.EnviaRecordatorioWhatsapp ?? false,
             ModoConfirmacionTurnos           = config?.ModoConfirmacionTurnos ?? Domain.Enums.ModoConfirmacionTurnos.Automatico,
+            MensajeWhatsApp24h               = config?.MensajeWhatsApp24h,
+            MensajeWhatsApp3h                = config?.MensajeWhatsApp3h,
         };
     }
 
@@ -113,6 +115,8 @@ public class AjustesService
         config.EnviaRecordatorioWhatsapp        = dto.EnviaRecordatorioWhatsapp;
         config.ModoConfirmacionTurnos           = dto.ModoConfirmacionTurnos;
         config.HorariosAtencionJson             = JsonSerializer.Serialize(dto.HorariosAtencion);
+        config.MensajeWhatsApp24h               = string.IsNullOrWhiteSpace(dto.MensajeWhatsApp24h) ? null : dto.MensajeWhatsApp24h.Trim();
+        config.MensajeWhatsApp3h                = string.IsNullOrWhiteSpace(dto.MensajeWhatsApp3h)  ? null : dto.MensajeWhatsApp3h.Trim();
 
         await _sucursalRepo.SaveChangesAsync();
 

@@ -9,6 +9,7 @@ public class SuperAdminService
 {
     private readonly ISucursalRepository _sucursalRepo;
     private readonly IUsuarioRepository  _usuarioRepo;
+    private readonly ICajaRepository     _cajaRepo;
 
     private static readonly PermisoSistema[] TodosLosPermisos =
     [
@@ -18,10 +19,14 @@ public class SuperAdminService
         PermisoSistema.VerTelefonoClientes,
     ];
 
-    public SuperAdminService(ISucursalRepository sucursalRepo, IUsuarioRepository usuarioRepo)
+    public SuperAdminService(
+        ISucursalRepository sucursalRepo,
+        IUsuarioRepository  usuarioRepo,
+        ICajaRepository     cajaRepo)
     {
         _sucursalRepo = sucursalRepo;
         _usuarioRepo  = usuarioRepo;
+        _cajaRepo     = cajaRepo;
     }
 
     // ─── Queries ──────────────────────────────────────────────────────────────
@@ -83,7 +88,16 @@ public class SuperAdminService
 
         await _usuarioRepo.AddAsync(owner);
 
-        // 3. Guardar en una sola transacción (mismo DbContext scope)
+        // 3. Caja de la sucursal
+        await _cajaRepo.AddAsync(new Caja
+        {
+            Id         = Guid.NewGuid(),
+            SucursalId = sucursal.Id,
+            Nombre     = $"Caja — {dto.Nombre}",
+            Activa     = true,
+        });
+
+        // 4. Guardar todo en una sola transacción (mismo DbContext scope)
         await _sucursalRepo.SaveChangesAsync();
 
         // Cargar el owner en la sucursal para la respuesta
