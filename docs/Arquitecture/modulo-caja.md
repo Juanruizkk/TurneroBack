@@ -109,7 +109,7 @@ public class MovimientoCaja
 {
     public Guid                Id             { get; set; }
     public Guid                CajaId         { get; set; }
-    public Guid                UsuarioId      { get; set; }   // quién lo registró
+    public Guid?               UsuarioId      { get; set; }   // null = movimiento automático del sistema
     public Guid?               TurnoId        { get; set; }   // null para gastos/retiros/ajustes
     public TipoMovimientoCaja  TipoMovimiento { get; set; }
     public MedioPago           MedioPago      { get; set; }
@@ -118,11 +118,13 @@ public class MovimientoCaja
     public DateTime            Fecha          { get; set; }   // UTC
 
     public Caja       Caja      { get; set; }
-    public Usuario    Usuario   { get; set; }
+    public Usuario?   Usuario   { get; set; }   // null si UsuarioId es null
     public Turno?     Turno     { get; set; }
     public PagoTurno? PagoTurno { get; set; }
 }
 ```
+
+> **Nota:** `UsuarioId` es `Guid?` desde la integración con MercadoPago. Los movimientos registrados automáticamente por el webhook de pago (cobro de seña online) tienen `UsuarioId = null` para indicar que el actor es el sistema, no un usuario humano. Los clientes del frontend que muestren el nombre del cajero deben manejar `usuarioId: null` en la respuesta.
 
 ---
 
@@ -482,4 +484,19 @@ Para cada grupo (profesionalId):
 
 ---
 
-*Documentación generada el 2026-03-16.*
+---
+
+## Cambios relacionados con MercadoPago
+
+Para documentación detallada del flujo de pagos online, ver [`mercadopago-senas.md`](mercadopago-senas.md).
+
+Resumen de cambios en este módulo:
+
+| Campo | Antes | Después | Motivo |
+|---|---|---|---|
+| `MovimientoCaja.UsuarioId` | `Guid` (no nullable) | `Guid?` (nullable) | Movimientos automáticos vía webhook no tienen usuario humano |
+| `MovimientoCajaResponseDto.UsuarioId` | `Guid` | `Guid?` | Refleja el dominio |
+
+---
+
+*Documentación actualizada el 2026-03-18.*

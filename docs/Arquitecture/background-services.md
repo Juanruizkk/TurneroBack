@@ -142,13 +142,66 @@ Se usa para construir el link de cancelación en el email:
 
 ---
 
-## Comparación entre ambos servicios
+---
 
-| | `TurnoAutoNoShowService` | `RecordatoriosEmailBackgroundService` |
-|---|---|---|
-| **Frecuencia** | Diaria a las 3:00 AM | Cada 15 minutos |
-| **Primera ejecución** | A las 3:00 AM siguientes | Inmediatamente al arrancar |
-| **Dependencias** | `ITurnoRepository` | `ITurnoRepository` + `IEmailService` |
-| **Persistencia** | Actualiza `Estado` del turno | Actualiza flags `Recordatorio*hEnviado` |
-| **Fallo de email** | N/A | No marca el flag → reintento automático |
-| **Fallo de DB** | Se loguea, reintenta al día siguiente | Se loguea, reintenta en 15 min |
+## TurnoPagoExpirationService
+
+**Archivo:** `src/Api/Services/TurnoPagoExpirationService.cs`
+
+### Propósito
+
+Expira automáticamente los turnos que quedaron en `PendientePago` porque el cliente abrió el checkout de MercadoPago pero no completó el pago (cerró la pestaña, abandonó el proceso, etc.). MercadoPago no envía ningún webhook en estos casos, por lo que sin este job el slot quedaría bloqueado indefinidamente.
+
+### Frecuencia
+
+Se ejecuta **cada 15 minutos**. El primer ciclo espera 15 minutos tras arrancar la API.
+
+```csharp
+private const int IntervalMinutos = 15;
+private const int TimeoutMinutos  = 30;
+```
+
+### Lógica
+
+```
+Limite = DateTime.Now - 30 minutos
+
+Turnos afectados:
+  Estado == PendientePago
+  AND FechaCreacion < Limite
+```
+
+Los 30 minutos coinciden con la ventana de sesión activa del checkout de MP. Un turno que lleva más de 30 minutos en `PendientePago` se considera abandonado.
+
+### Estado resultante
+
+`PendientePago` → `PagoRechazado` (valor `8`).
+
+Se usa `PagoRechazado` en lugar de `CanceladoCliente` para distinguir en reportes los abandonos de checkout de las cancelaciones voluntarias del cliente.
+
+### Liberación del slot
+
+Una vez que el turno pasa a `PagoRechazado`, el slot queda disponible para nuevas reservas porque `ExisteConflictoHorarioAsync` y `GetActivosSucursalEnRangoAsync` excluyen ese estado de los conflictos de horario.
+
+### Método de repositorio
+
+`ITurnoRepository.GetPendientePagoVencidosAsync(DateTime limite)`
+
+Devuelve los turnos en estado `PendientePago` con `FechaCreacion` anterior a `limite`.
+
+### Comportamiento ante errores
+
+Los errores se capturan con `try/catch` y se loguean con `LogError`. El servicio **no se detiene** — el bucle continúa y reintenta 15 minutos después.
+
+---
+
+## Comparación entre los tres servicios
+
+| | `TurnoAutoNoShowService` | `RecordatoriosEmailBackgroundService` | `TurnoPagoExpirationService` |
+|---|---|---|---|
+| **Frecuencia** | Diaria a las 3:00 AM | Cada 15 minutos | Cada 15 minutos |
+| **Primera ejecución** | A las 3:00 AM siguientes | Inmediatamente al arrancar | Después de 15 minutos |
+| **Dependencias** | `ITurnoRepository` | `ITurnoRepository` + `IEmailService` | `ITurnoRepository` |
+| **Persistencia** | Actualiza `Estado` del turno | Actualiza flags `Recordatorio*hEnviado` | Actualiza `Estado` del turno |
+| **Fallo de email** | N/A | No marca el flag → reintento automático | N/A |
+| **Fallo de DB** | Se loguea, reintenta al día siguiente | Se loguea, reintenta en 15 min | Se loguea, reintenta en 15 min |

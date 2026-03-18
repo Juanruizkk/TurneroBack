@@ -6,7 +6,7 @@ Tests que verifican la lógica de negocio de `TurnoService` y `AdjuntoTurnoServi
 
 **Proyecto:** `tests/TurneroApp.Tests/`
 **Framework:** xUnit 2.6 + Moq 4.20 + FluentAssertions 6.12
-**Cobertura:** 40 tests — `CreateAsync`, `UpdateEstadoAsync`, `CrearComentarioAsync`, `EliminarComentarioAsync`, `ListarAsync`, `SubirAsync`, `EliminarAsync`
+**Cobertura:** 43 tests — `CreateAsync` (+3 nuevos: `PendientePago`, email omitido para PendientePago, `FechaCreacion`), `UpdateEstadoAsync`, `CrearComentarioAsync`, `EliminarComentarioAsync`, `ListarAsync`, `SubirAsync`, `EliminarAsync`
 
 ---
 
@@ -21,7 +21,7 @@ tests/
     ├── Helpers/
     │   └── TurnoTestFactory.cs        ← fábrica de entidades de prueba
     └── Services/
-        ├── TurnoServiceCreateTests.cs          (15 tests)
+        ├── TurnoServiceCreateTests.cs          (18 tests — incluye 3 de PendientePago/FechaCreacion)
         ├── TurnoServiceUpdateTests.cs          (8 tests)
         ├── TurnoServiceComentariosTests.cs     (6 tests)
         └── AdjuntoTurnoServiceTests.cs         (11 tests)

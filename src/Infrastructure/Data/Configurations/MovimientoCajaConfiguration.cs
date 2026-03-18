@@ -42,6 +42,7 @@ public class MovimientoCajaConfiguration : IEntityTypeConfiguration<MovimientoCa
         builder.HasOne(m => m.Usuario)
             .WithMany(u => u.MovimientosRegistrados)
             .HasForeignKey(m => m.UsuarioId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(m => m.Turno)

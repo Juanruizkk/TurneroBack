@@ -63,7 +63,7 @@ dotnet test tests/TurneroApp.Tests/TurneroApp.Tests.csproj \
 dotnet watch run --project src/Api
 ```
 
-Resultado esperado: **11 passed, 0 failed** en menos de 2 segundos.
+Resultado esperado: **11 passed, 0 failed** en menos de 2 segundos (solo esta suite).
 
 ### Correr toda la suite de tests
 
@@ -71,7 +71,7 @@ Resultado esperado: **11 passed, 0 failed** en menos de 2 segundos.
 dotnet test tests/TurneroApp.Tests/TurneroApp.Tests.csproj --verbosity normal
 ```
 
-Resultado esperado: **51 passed, 0 failed** (40 existentes + 11 nuevos).
+Resultado esperado: **83 passed, 0 failed** (43 TurnoService + 11 TurnoAutoNoShow + 16 PagoTurnoService + 11 TurnoPagoExpiration + 2 restantes = total aproximado).
 
 ### Filtros útiles por categoría
 
