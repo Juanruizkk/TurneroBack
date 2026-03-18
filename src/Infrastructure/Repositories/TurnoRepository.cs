@@ -79,6 +79,7 @@ public class TurnoRepository : GenericRepository<Turno>, ITurnoRepository
                 t.Estado != EstadoTurno.CanceladoCliente &&
                 t.Estado != EstadoTurno.CanceladoStaff &&
                 t.Estado != EstadoTurno.NoShow &&
+                t.Estado != EstadoTurno.PagoRechazado &&
                 t.FechaHoraInicio < hasta &&
                 t.FechaHoraFin > desde)
             .ToListAsync();
@@ -92,6 +93,7 @@ public class TurnoRepository : GenericRepository<Turno>, ITurnoRepository
             t.Estado != EstadoTurno.CanceladoCliente &&
             t.Estado != EstadoTurno.CanceladoStaff &&
             t.Estado != EstadoTurno.NoShow &&
+            t.Estado != EstadoTurno.PagoRechazado &&
             t.FechaHoraInicio < fin &&
             t.FechaHoraFin > inicio);
 
@@ -112,6 +114,11 @@ public class TurnoRepository : GenericRepository<Turno>, ITurnoRepository
                 t.FechaHoraFin < fechaLimite)
             .ToListAsync();
     }
+
+    public async Task<IEnumerable<Turno>> GetPendientePagoVencidosAsync(DateTime limite)
+        => await _dbSet
+            .Where(t => t.Estado == EstadoTurno.PendientePago && t.FechaCreacion < limite)
+            .ToListAsync();
 
     public async Task<IEnumerable<Turno>> GetParaRecordatoriosAsync(
         DateTime ahora, DateTime limite24h, DateTime limite3h)

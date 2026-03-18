@@ -8,5 +8,7 @@ public enum EstadoTurno
     CanceladoStaff     = 3,
     Completado         = 4,
     NoShow             = 5,
-    Reprogramado       = 6
+    Reprogramado       = 6,
+    PendientePago      = 7,  // turno Online con seña, esperando pago MP
+    PagoRechazado      = 8   // el pago en MP fue rechazado o cancelado (distinto de cancelación voluntaria)
 }

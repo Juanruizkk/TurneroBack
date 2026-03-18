@@ -27,4 +27,10 @@ public interface ITurnoRepository : IGenericRepository<Turno>
     /// Incluye Cliente, Servicio, Profesional y Sucursal para construir el email.
     /// </summary>
     Task<IEnumerable<Turno>> GetParaRecordatoriosAsync(DateTime ahora, DateTime limite24h, DateTime limite3h);
+
+    /// <summary>
+    /// Retorna todos los turnos en estado PendientePago cuya FechaCreacion
+    /// es anterior a <paramref name="limite"/> (turnos abandonados).
+    /// </summary>
+    Task<IEnumerable<Turno>> GetPendientePagoVencidosAsync(DateTime limite);
 }

@@ -6,7 +6,7 @@ public class MovimientoCajaResponseDto
 {
     public Guid Id { get; set; }
     public Guid CajaId { get; set; }
-    public Guid UsuarioId { get; set; }
+    public Guid? UsuarioId { get; set; }
     public Guid? TurnoId { get; set; }
     public TipoMovimientoCaja TipoMovimiento { get; set; }
     public MedioPago MedioPago { get; set; }

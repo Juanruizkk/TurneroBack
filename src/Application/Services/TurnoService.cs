@@ -84,13 +84,17 @@ public class TurnoService
                 : Math.Round(servicio.Precio * servicio.ValorSena.Value / 100m, 2);
         }
 
-        // Estado inicial: turnos de staff siempre Confirmado; para web respeta el modo
+        // Estado inicial: turnos Online con seña → PendientePago; resto respeta modoConfirmacion
         var sucursalConfig = await _sucursalRepository.GetByIdConConfiguracionAsync(dto.SucursalId);
         var modo = sucursalConfig?.ConfiguracionSucursal?.ModoConfirmacionTurnos
                    ?? ModoConfirmacionTurnos.Automatico;
-        var estadoInicial = (dto.Origen == OrigenTurno.Web && modo == ModoConfirmacionTurnos.Manual)
-            ? EstadoTurno.Pendiente
-            : EstadoTurno.Confirmado;
+        EstadoTurno estadoInicial;
+        if (dto.Origen == OrigenTurno.Web && servicio.RequiereSena)
+            estadoInicial = EstadoTurno.PendientePago;
+        else if (dto.Origen == OrigenTurno.Web && modo == ModoConfirmacionTurnos.Manual)
+            estadoInicial = EstadoTurno.Pendiente;
+        else
+            estadoInicial = EstadoTurno.Confirmado;
 
         var turno = new Turno
         {
@@ -107,7 +111,8 @@ public class TurnoService
             TokenGestion = Guid.NewGuid().ToString("N"),
             PrecioServicio = servicio.Precio,
             MontoSena = montoSena,
-            TotalCobrado = 0
+            TotalCobrado = 0,
+            FechaCreacion = DateTime.Now
         };
 
         await _turnoRepository.AddAsync(turno);
@@ -118,8 +123,8 @@ public class TurnoService
         turnoCompleto.Cliente  = turnoCompleto.Cliente  ?? cliente;
         turnoCompleto.Servicio = turnoCompleto.Servicio ?? servicio;
 
-        // Enviar email de confirmación si el cliente tiene email registrado
-        if (!string.IsNullOrWhiteSpace(cliente.Email))
+        // Enviar email de confirmación solo si el turno quedó confirmado (no si está esperando pago)
+        if (estadoInicial != EstadoTurno.PendientePago && !string.IsNullOrWhiteSpace(cliente.Email))
         {
             try
             {

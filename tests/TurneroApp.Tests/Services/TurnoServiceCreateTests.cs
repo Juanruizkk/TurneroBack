@@ -299,6 +299,71 @@ public class TurnoServiceCreateTests
     }
 
     [Fact]
+    public async Task Create_OrigenWeb_ConSena_EstadoPendientePago()
+    {
+        var servicio = TurnoTestFactory.CrearServicio(
+            requiereSena: true, tipoSena: TipoSena.Fija, valorSena: 1500m);
+        var cliente  = TurnoTestFactory.CrearCliente();
+        var sucursal = TurnoTestFactory.CrearSucursalConConfig();
+        var dto      = TurnoTestFactory.CrearDto(
+            servicioId: servicio.Id, clienteId: cliente.Id,
+            origen: OrigenTurno.Web);
+
+        SetupCrearOk(servicio, cliente, sucursal);
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.Estado.Should().Be(EstadoTurno.PendientePago,
+            "un turno Web con seña debe quedar en PendientePago hasta que el cliente pague");
+    }
+
+    [Fact]
+    public async Task Create_OrigenWeb_ConSena_NoEnviaEmailDeConfirmacion()
+    {
+        // El email se envía recién cuando el webhook de MP confirma el pago
+        var servicio = TurnoTestFactory.CrearServicio(
+            requiereSena: true, tipoSena: TipoSena.Fija, valorSena: 1500m);
+        var cliente  = TurnoTestFactory.CrearCliente("cliente@test.com");
+        var sucursal = TurnoTestFactory.CrearSucursalConConfig();
+        var dto      = TurnoTestFactory.CrearDto(
+            servicioId: servicio.Id, clienteId: cliente.Id,
+            origen: OrigenTurno.Web);
+
+        SetupCrearOk(servicio, cliente, sucursal);
+
+        await _sut.CreateAsync(dto);
+
+        _emailService.Verify(e => e.EnviarConfirmacionTurnoAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string>()),
+            Times.Never,
+            "no debe enviarse el email de confirmación hasta que el pago sea aprobado por MP");
+    }
+
+    [Fact]
+    public async Task Create_FechaCreacion_SeEstableceAlCrear()
+    {
+        var servicio = TurnoTestFactory.CrearServicio();
+        var cliente  = TurnoTestFactory.CrearCliente();
+        var sucursal = TurnoTestFactory.CrearSucursalConConfig();
+        var dto      = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id);
+        Turno? turnoCapturado = null;
+
+        SetupCrearOk(servicio, cliente, sucursal);
+        _turnoRepo
+            .Setup(r => r.AddAsync(It.IsAny<Turno>()))
+            .Callback<Turno>(t => turnoCapturado = t)
+            .Returns(Task.CompletedTask);
+
+        await _sut.CreateAsync(dto);
+
+        turnoCapturado.Should().NotBeNull();
+        turnoCapturado!.FechaCreacion.Should().BeCloseTo(DateTime.Now, TimeSpan.FromSeconds(5),
+            "FechaCreacion debe ser la fecha/hora actual al momento de persistir el turno");
+    }
+
+    [Fact]
     public async Task Create_EmailFalla_NoLanzaException()
     {
         var servicio = TurnoTestFactory.CrearServicio();

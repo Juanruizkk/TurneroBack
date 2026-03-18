@@ -8,6 +8,7 @@ using TurneroApp.Application.Services;
 using TurneroApp.Infrastructure.Data;
 using TurneroApp.Infrastructure.Repositories;
 using TurneroApp.Infrastructure.Services;
+using TurneroApp.Infrastructure.Services.MercadoPago;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,8 +72,23 @@ builder.Services.AddScoped<AdjuntoTurnoService>();
 builder.Services.AddScoped<PublicoService>();
 builder.Services.AddScoped<InvitacionService>();
 builder.Services.AddScoped<JwtService>();
+
+// ─── MercadoPago ─────────────────────────────────────────────────────────────
+builder.Services.Configure<MercadoPagoOptions>(
+    builder.Configuration.GetSection(MercadoPagoOptions.SectionName));
+builder.Services.AddScoped<IMercadoPagoGateway, MercadoPagoGateway>();
+builder.Services.AddScoped<IPagoTurnoService>(sp => new PagoTurnoService(
+    sp.GetRequiredService<ITurnoRepository>(),
+    sp.GetRequiredService<ICajaRepository>(),
+    sp.GetRequiredService<ISucursalRepository>(),
+    sp.GetRequiredService<IMercadoPagoGateway>(),
+    sp.GetRequiredService<IEmailService>(),
+    sp.GetRequiredService<ILogger<PagoTurnoService>>(),
+    builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173"
+));
 builder.Services.AddHostedService<TurnoAutoNoShowService>();
 builder.Services.AddHostedService<RecordatoriosEmailBackgroundService>();
+builder.Services.AddHostedService<TurnoPagoExpirationService>();
 builder.Services.AddScoped<AuthService>(sp =>
 {
     var repo    = sp.GetRequiredService<IUsuarioRepository>();

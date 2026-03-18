@@ -229,6 +229,14 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(24);
 
+                    b.Property<string>("MensajeWhatsApp24h")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("MensajeWhatsApp3h")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<int>("MinutosAnticipacionMinimaReserva")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -316,7 +324,7 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Property<Guid?>("TurnoId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("UsuarioId")
+                    b.Property<Guid?>("UsuarioId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -493,6 +501,9 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Property<int>("Estado")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<DateTime>("FechaHoraFin")
                         .HasColumnType("timestamp without time zone");
 
@@ -501,6 +512,10 @@ namespace TurneroApp.Infrastructure.Migrations
 
                     b.Property<decimal?>("MontoSena")
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("MpPreferenceId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Observaciones")
                         .HasMaxLength(1000)
@@ -757,8 +772,7 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.HasOne("TurneroApp.Domain.Entities.Usuario", "Usuario")
                         .WithMany("MovimientosRegistrados")
                         .HasForeignKey("UsuarioId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Caja");
 

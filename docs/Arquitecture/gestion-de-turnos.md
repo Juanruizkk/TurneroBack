@@ -24,6 +24,8 @@ Definida en `src/Domain/Entities/Turno.cs`. Es el agregado central del sistema.
 | `PrecioServicio`  | `decimal`       | Precio del servicio al momento de crear el turno (snapshot)     |
 | `MontoSena`       | `decimal?`      | Monto de seña requerido (calculado si `Servicio.RequiereSena`)  |
 | `TotalCobrado`    | `decimal`       | Suma de todos los pagos registrados                             |
+| `MpPreferenceId`  | `string?`       | ID de preferencia en MercadoPago. Solo presente cuando `Estado = PendientePago`. |
+| `FechaCreacion`   | `DateTime`      | Fecha y hora de creación del turno (`Kind=Unspecified`). Se usa para calcular expiración de `PendientePago`. |
 
 ### Relaciones
 
@@ -43,17 +45,26 @@ Definidos en `src/Domain/Enums/EstadoTurno.cs`. Persistidos como `int` en la DB.
 
 | Valor | Nombre            | Descripción                                                         |
 |-------|-------------------|---------------------------------------------------------------------|
-| `0`   | `Pendiente`       | Estado inicial al crear un turno. Aún no confirmado por el staff    |
-| `1`   | `Confirmado`      | El staff confirmó la asistencia del cliente                         |
-| `2`   | `CanceladoCliente`| El cliente canceló desde su vista pública (via token)               |
-| `3`   | `CanceladoStaff`  | El staff canceló desde el panel de administración                   |
-| `4`   | `Completado`      | El servicio fue realizado exitosamente                              |
-| `5`   | `NoShow`          | El cliente no se presentó al turno                                  |
-| `6`   | `Reprogramado`    | El turno fue movido a otro horario                                  |
+| `0`   | `Pendiente`       | Estado inicial al crear un turno. Aún no confirmado por el staff                    |
+| `1`   | `Confirmado`      | El staff confirmó la asistencia, o el pago online fue aprobado por MP               |
+| `2`   | `CanceladoCliente`| El cliente canceló (via token público, o vencimiento de pago sin abonar)            |
+| `3`   | `CanceladoStaff`  | El staff canceló desde el panel de administración                                   |
+| `4`   | `Completado`      | El servicio fue realizado exitosamente                                               |
+| `5`   | `NoShow`          | El cliente no se presentó al turno                                                  |
+| `6`   | `Reprogramado`    | El turno fue movido a otro horario                                                  |
+| `7`   | `PendientePago`   | Turno `Web` con seña requerida. Esperando pago online vía MercadoPago               |
+| `8`   | `PagoRechazado`   | El pago en MercadoPago fue rechazado o cancelado. Distinto de una cancelación voluntaria del cliente (`CanceladoCliente`). No bloquea horario. |
 
 ### Transiciones habituales
 
 ```
+PendientePago ──► webhook approved ──► Confirmado ──► Completado
+     │                                      │
+     ├──► webhook rejected/cancelled ──► PagoRechazado
+     ├──► CanceladoCliente                  └──► CanceladoStaff
+     └──► CanceladoStaff                    └──► NoShow
+                                            └──► Reprogramado
+
 Pendiente ──► Confirmado ──► Completado
     │               │
     │               └──► CanceladoStaff
@@ -68,9 +79,11 @@ Pendiente ──► Confirmado ──► Completado
 `ExisteConflictoHorarioAsync` excluye los estados cancelados y NoShow al verificar superposición:
 
 ```
-Activos: Pendiente, Confirmado, Completado, Reprogramado
-Inactivos (no bloquean horario): CanceladoCliente, CanceladoStaff, NoShow
+Activos (bloquean horario): Pendiente, PendientePago, Confirmado, Completado, Reprogramado
+Inactivos (no bloquean):    CanceladoCliente, CanceladoStaff, NoShow, PagoRechazado
 ```
+
+> `PendientePago` bloquea el horario. Un turno online en proceso de pago reserva el slot hasta que se confirme o cancele.
 
 ---
 
@@ -98,10 +111,15 @@ Archivo: `src/Application/Services/TurnoService.cs`
 4. Calcula `MontoSena` si el servicio lo requiere:
    - `TipoSena.Fija` → usa `Servicio.ValorSena` directamente
    - `TipoSena.Porcentaje` → `Servicio.Precio * ValorSena / 100`
-5. Crea el `Turno` con estado `Pendiente` y genera un `TokenGestion` único (`Guid.NewGuid().ToString("N")`).
-6. Persiste y recarga con relaciones (`GetByIdConRelacionesAsync`).
-7. Si el cliente tiene email registrado, envía un correo de confirmación via `IEmailService`.
-   - El email es no-crítico: si falla, la reserva igual se confirma.
+5. Determina el **estado inicial** según origen y configuración:
+   - `Web + RequiereSena == true` → `PendientePago` (flujo MercadoPago)
+   - `Web + modo Manual` → `Pendiente`
+   - Resto → `Confirmado`
+6. Genera un `TokenGestion` único (`Guid.NewGuid().ToString("N")`).
+7. Persiste y recarga con relaciones (`GetByIdConRelacionesAsync`).
+8. Si el cliente tiene email registrado **y el estado no es `PendientePago`**, envía un correo de confirmación via `IEmailService`.
+   - El email es no-crítico: si falla, la reserva igual se procesa.
+   - Para turnos `PendientePago` (seña online), el email de confirmación **no se envía aquí**. Se envía desde `PagoTurnoService.ProcesarNotificacionPagoAsync` una vez que el pago sea aprobado por MercadoPago.
 
 ---
 
@@ -266,6 +284,14 @@ Vista de calendario con dos modos:
 Los turnos se posicionan absolutamente según `FechaHoraInicio` y duración.
 Turnos superpuestos en la misma columna se dividen en lanes horizontales.
 
+Los estados del conjunto `ESTADOS_GHOST` se renderizan en modo opaco y se ocultan por defecto, mostrándose solo al activar el botón "Ver cancelados":
+
+```ts
+const ESTADOS_GHOST = new Set(['CanceladoStaff', 'CanceladoCliente', 'NoShow', 'PagoRechazado']);
+```
+
+`PagoRechazado` se agrupa con los cancelados porque representa un turno que nunca se concretó, igual que una cancelación. Esto evita que ocupe espacio visual en la agenda principal.
+
 ### Vista pública del cliente — `TurnoToken.tsx`
 
 Accesible sin login via `/turno/:token`. Permite al cliente:
@@ -278,9 +304,15 @@ Accesible sin login via `/turno/:token`. Permite al cliente:
 
 Implementado en `src/Infrastructure/Services/EmailService.cs` usando **MailKit** (SMTP).
 
-| Trigger                     | Template                  | Destinatario     |
-|-----------------------------|---------------------------|------------------|
-| Turno creado (si tiene email) | Confirmación de turno   | Cliente          |
+| Trigger | Template | Destinatario |
+|---|---|---|
+| Turno creado con estado `Confirmado` o `Pendiente` (si tiene email) | Confirmación de turno | Cliente |
+| Webhook MP `payment.approved` — turno `PendientePago` pasa a `Confirmado` | Confirmación de turno | Cliente |
+| Staff cancela turno (`CanceladoStaff`) | Cancelación por staff | Cliente |
+| Cliente cancela turno (`CanceladoCliente`) | Cancelación por cliente | Cliente |
+| Cliente cancela turno (`CanceladoCliente`) | Alerta liberación de agenda | Profesional (o email de sucursal) |
+
+> **Regla clave:** los turnos creados con `estado = PendientePago` **no reciben email en la creación**. El email de confirmación se envía únicamente cuando el pago es aprobado por MercadoPago (vía webhook). Esto evita que el cliente reciba un "turno confirmado" antes de haber pagado.
 
 Configuración SMTP en `appsettings.json`:
 ```json
