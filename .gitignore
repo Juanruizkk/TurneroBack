@@ -19,3 +19,6 @@ appsettings.Secrets.json
 ## OS
 .DS_Store
 Thumbs.db
+
+
+appsettings.json
