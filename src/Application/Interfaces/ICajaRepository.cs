@@ -32,4 +32,23 @@ public interface ICajaRepository : IGenericRepository<Caja>
     /// </summary>
     Task<IEnumerable<MovimientoCaja>> GetCobrosTurnoConProfesionalAsync(
         Guid cajaId, DateTime desde, DateTime hasta);
+
+    // ── Sesiones de caja ──────────────────────────────────────────────────────
+
+    /// <summary>Retorna la sesión activa de la caja, o null si no hay ninguna abierta.</summary>
+    Task<CajaSesion?> GetSesionActivaByCajaAsync(Guid cajaId);
+
+    /// <summary>Abre una nueva sesión. Lanza si ya hay una sesión activa.</summary>
+    Task<CajaSesion> AbrirSesionAsync(CajaSesion sesion);
+
+    /// <summary>Cierra la sesión, persiste MontoFinalEsperado, MontoFinalReal y Diferencia.</summary>
+    Task<CajaSesion> CerrarSesionAsync(
+        Guid    sesionId,
+        decimal montoFinalReal,
+        decimal montoFinalEsperado,
+        Guid?   usuarioCierreId,
+        string? observaciones);
+
+    /// <summary>Historial de sesiones de una caja, ordenadas por FechaApertura descendente.</summary>
+    Task<IEnumerable<CajaSesion>> GetSesionesByCajaAsync(Guid cajaId);
 }

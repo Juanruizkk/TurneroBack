@@ -148,4 +148,78 @@ public class CajaController : ControllerBase
             return NotFound(new { message = ex.Message });
         }
     }
+
+    // ── GET /api/caja/{cajaId}/sesiones/activa ────────────────────────────────
+
+    /// <summary>Obtiene la sesión activa de la caja, o 204 si no hay ninguna.</summary>
+    [HttpGet("{cajaId:guid}/sesiones/activa")]
+    [ProducesResponseType(typeof(CajaSesionResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> GetSesionActiva(Guid cajaId)
+    {
+        var sesion = await _cajaService.GetSesionActivaAsync(cajaId);
+        if (sesion is null) return NoContent();
+        return Ok(sesion);
+    }
+
+    // ── GET /api/caja/{cajaId}/sesiones ───────────────────────────────────────
+
+    /// <summary>Historial de sesiones de la caja, ordenadas por fecha de apertura descendente.</summary>
+    [HttpGet("{cajaId:guid}/sesiones")]
+    [ProducesResponseType(typeof(IEnumerable<CajaSesionResponseDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetHistorialSesiones(Guid cajaId)
+    {
+        var sesiones = await _cajaService.GetHistorialSesionesAsync(cajaId);
+        return Ok(sesiones);
+    }
+
+    // ── POST /api/caja/{cajaId}/sesiones/abrir ────────────────────────────────
+
+    /// <summary>Abre una nueva sesión de caja. Retorna 400 si ya hay una sesión activa.</summary>
+    [HttpPost("{cajaId:guid}/sesiones/abrir")]
+    [ProducesResponseType(typeof(CajaSesionResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AbrirSesion(Guid cajaId, [FromBody] AbrirSesionDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        Guid usuarioId;
+        try { usuarioId = GetUsuarioId(); }
+        catch (UnauthorizedAccessException ex) { return Unauthorized(new { message = ex.Message }); }
+
+        try
+        {
+            var sesion = await _cajaService.AbrirSesionAsync(cajaId, dto, usuarioId);
+            return CreatedAtAction(nameof(GetSesionActiva), new { cajaId }, sesion);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ── POST /api/caja/{cajaId}/sesiones/cerrar ───────────────────────────────
+
+    /// <summary>Cierra la sesión activa de la caja. Retorna 400 si no hay sesión activa.</summary>
+    [HttpPost("{cajaId:guid}/sesiones/cerrar")]
+    [ProducesResponseType(typeof(CajaSesionResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CerrarSesion(Guid cajaId, [FromBody] CerrarSesionDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        Guid usuarioId;
+        try { usuarioId = GetUsuarioId(); }
+        catch (UnauthorizedAccessException ex) { return Unauthorized(new { message = ex.Message }); }
+
+        try
+        {
+            var sesion = await _cajaService.CerrarSesionAsync(cajaId, dto, usuarioId);
+            return Ok(sesion);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

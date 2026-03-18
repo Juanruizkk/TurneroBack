@@ -54,6 +54,13 @@ public class CajaRepository : GenericRepository<Caja>, ICajaRepository
         await using var tx = await _context.Database.BeginTransactionAsync();
         try
         {
+            // Auto-vincular a la sesión activa si existe
+            var sesionActiva = await _context.CajaSesiones
+                .FirstOrDefaultAsync(s => s.CajaId == movimiento.CajaId
+                                       && s.Estado == EstadoCajaSesion.Abierta);
+            if (sesionActiva is not null)
+                movimiento.CajaSesionId = sesionActiva.Id;
+
             await _context.MovimientosCaja.AddAsync(movimiento);
 
             if (pagoTurno is not null)
@@ -89,5 +96,53 @@ public class CajaRepository : GenericRepository<Caja>, ICajaRepository
                      && m.TurnoId != null
                      && m.Fecha >= desde
                      && m.Fecha <= hasta)
+            .ToListAsync();
+
+    // ── Sesiones de caja ──────────────────────────────────────────────────────
+
+    public async Task<CajaSesion?> GetSesionActivaByCajaAsync(Guid cajaId)
+        => await _context.CajaSesiones
+            .Include(s => s.UsuarioApertura)
+            .FirstOrDefaultAsync(s => s.CajaId == cajaId
+                                   && s.Estado == EstadoCajaSesion.Abierta);
+
+    public async Task<CajaSesion> AbrirSesionAsync(CajaSesion sesion)
+    {
+        await _context.CajaSesiones.AddAsync(sesion);
+        await _context.SaveChangesAsync();
+        return sesion;
+    }
+
+    public async Task<CajaSesion> CerrarSesionAsync(
+        Guid    sesionId,
+        decimal montoFinalReal,
+        decimal montoFinalEsperado,
+        Guid?   usuarioCierreId,
+        string? observaciones)
+    {
+        var sesion = await _context.CajaSesiones
+            .Include(s => s.UsuarioApertura)
+            .Include(s => s.UsuarioCierre)
+            .FirstOrDefaultAsync(s => s.Id == sesionId)
+            ?? throw new InvalidOperationException($"Sesión con Id {sesionId} no encontrada.");
+
+        sesion.FechaCierre          = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified);
+        sesion.MontoFinalReal       = montoFinalReal;
+        sesion.MontoFinalEsperado   = montoFinalEsperado;
+        sesion.Diferencia           = montoFinalReal - montoFinalEsperado;
+        sesion.Estado               = EstadoCajaSesion.Cerrada;
+        sesion.UsuarioCierreId      = usuarioCierreId;
+        sesion.ObservacionesCierre  = observaciones;
+
+        await _context.SaveChangesAsync();
+        return sesion;
+    }
+
+    public async Task<IEnumerable<CajaSesion>> GetSesionesByCajaAsync(Guid cajaId)
+        => await _context.CajaSesiones
+            .Include(s => s.UsuarioApertura)
+            .Include(s => s.UsuarioCierre)
+            .Where(s => s.CajaId == cajaId)
+            .OrderByDescending(s => s.FechaApertura)
             .ToListAsync();
 }

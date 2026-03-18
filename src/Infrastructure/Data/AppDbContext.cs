@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<PagoTurno> PagosTurno => Set<PagoTurno>();
     public DbSet<BloqueoAgenda> BloqueosAgenda => Set<BloqueoAgenda>();
     public DbSet<ConfiguracionSucursal> ConfiguracionesSucursal => Set<ConfiguracionSucursal>();
+    public DbSet<CajaSesion> CajaSesiones => Set<CajaSesion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

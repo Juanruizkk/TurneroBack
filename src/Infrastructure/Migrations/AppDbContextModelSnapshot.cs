@@ -129,6 +129,60 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.ToTable("cajas", (string)null);
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.CajaSesion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CajaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Diferencia")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaApertura")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaCierre")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<decimal?>("MontoFinalEsperado")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("MontoFinalReal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("MontoInicial")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ObservacionesApertura")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ObservacionesCierre")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("UsuarioAperturaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UsuarioCierreId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsuarioAperturaId");
+
+                    b.HasIndex("UsuarioCierreId");
+
+                    b.HasIndex("CajaId", "Estado");
+
+                    b.ToTable("caja_sesiones", (string)null);
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.Cliente", b =>
                 {
                     b.Property<Guid>("Id")
@@ -305,6 +359,9 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Property<Guid>("CajaId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CajaSesionId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("Fecha")
                         .HasColumnType("timestamp with time zone");
 
@@ -328,6 +385,8 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CajaSesionId");
 
                     b.HasIndex("TurnoId");
 
@@ -704,6 +763,31 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Navigation("Sucursal");
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.CajaSesion", b =>
+                {
+                    b.HasOne("TurneroApp.Domain.Entities.Caja", "Caja")
+                        .WithMany("Sesiones")
+                        .HasForeignKey("CajaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TurneroApp.Domain.Entities.Usuario", "UsuarioApertura")
+                        .WithMany()
+                        .HasForeignKey("UsuarioAperturaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TurneroApp.Domain.Entities.Usuario", "UsuarioCierre")
+                        .WithMany()
+                        .HasForeignKey("UsuarioCierreId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Caja");
+
+                    b.Navigation("UsuarioApertura");
+
+                    b.Navigation("UsuarioCierre");
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.Cliente", b =>
                 {
                     b.HasOne("TurneroApp.Domain.Entities.Sucursal", "Sucursal")
@@ -764,6 +848,11 @@ namespace TurneroApp.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("TurneroApp.Domain.Entities.CajaSesion", "CajaSesion")
+                        .WithMany("Movimientos")
+                        .HasForeignKey("CajaSesionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("TurneroApp.Domain.Entities.Turno", "Turno")
                         .WithMany()
                         .HasForeignKey("TurnoId")
@@ -775,6 +864,8 @@ namespace TurneroApp.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Caja");
+
+                    b.Navigation("CajaSesion");
 
                     b.Navigation("Turno");
 
@@ -869,6 +960,13 @@ namespace TurneroApp.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.Caja", b =>
+                {
+                    b.Navigation("Movimientos");
+
+                    b.Navigation("Sesiones");
+                });
+
+            modelBuilder.Entity("TurneroApp.Domain.Entities.CajaSesion", b =>
                 {
                     b.Navigation("Movimientos");
                 });
