@@ -10,4 +10,5 @@ public class Caja
     // Navigation properties
     public Sucursal Sucursal { get; set; } = null!;
     public ICollection<MovimientoCaja> Movimientos { get; set; } = new List<MovimientoCaja>();
+    public ICollection<CajaSesion>     Sesiones    { get; set; } = new List<CajaSesion>();
 }

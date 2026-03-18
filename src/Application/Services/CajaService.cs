@@ -176,6 +176,99 @@ public class CajaService
         };
     }
 
+    // ── Sesiones de caja ──────────────────────────────────────────────────────
+
+    public async Task<CajaSesionResponseDto?> GetSesionActivaAsync(Guid cajaId)
+    {
+        var sesion = await _cajaRepository.GetSesionActivaByCajaAsync(cajaId);
+        return sesion is null ? null : MapSesionToResponse(sesion);
+    }
+
+    public async Task<CajaSesionResponseDto> AbrirSesionAsync(
+        Guid          cajaId,
+        AbrirSesionDto dto,
+        Guid          usuarioId)
+    {
+        _ = await _cajaRepository.GetByIdAsync(cajaId)
+            ?? throw new InvalidOperationException($"Caja con Id {cajaId} no encontrada.");
+
+        var activa = await _cajaRepository.GetSesionActivaByCajaAsync(cajaId);
+        if (activa is not null)
+            throw new InvalidOperationException("Ya hay una sesión abierta para esta caja.");
+
+        var sesion = new CajaSesion
+        {
+            Id                   = Guid.NewGuid(),
+            CajaId               = cajaId,
+            FechaApertura        = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified),
+            MontoInicial         = dto.MontoInicial,
+            Estado               = Domain.Enums.EstadoCajaSesion.Abierta,
+            UsuarioAperturaId    = usuarioId,
+            ObservacionesApertura = dto.Observaciones,
+        };
+
+        var resultado = await _cajaRepository.AbrirSesionAsync(sesion);
+
+        // Recargar con el nav de UsuarioApertura para el mapper
+        var conNav = await _cajaRepository.GetSesionActivaByCajaAsync(cajaId);
+        return MapSesionToResponse(conNav ?? resultado);
+    }
+
+    public async Task<CajaSesionResponseDto> CerrarSesionAsync(
+        Guid          cajaId,
+        CerrarSesionDto dto,
+        Guid          usuarioId)
+    {
+        var sesion = await _cajaRepository.GetSesionActivaByCajaAsync(cajaId)
+            ?? throw new InvalidOperationException("No hay ninguna sesión activa para esta caja.");
+
+        // Calcular monto esperado con los movimientos de la sesión
+        var movimientosSesion = sesion.Movimientos.ToList();
+
+        // Si la nav collection no está cargada, realizar query directa
+        if (!movimientosSesion.Any())
+        {
+            // FechaApertura viene de timestamp without time zone → Kind=Unspecified;
+            // hay que decirle a Npgsql que es UTC para comparar con movimientos_caja.Fecha (timestamptz)
+            var desdeUtc = DateTime.SpecifyKind(sesion.FechaApertura, DateTimeKind.Utc);
+            var hastaUtc = DateTime.UtcNow;
+            var todos = (await _cajaRepository.GetMovimientosRangoAsync(
+                cajaId, desdeUtc, hastaUtc)).ToList();
+            movimientosSesion = todos
+                .Where(m => m.CajaSesionId == sesion.Id)
+                .ToList();
+        }
+
+        var ingresos = movimientosSesion
+            .Where(m => m.TipoMovimiento is TipoMovimientoCaja.CobroTurno
+                                         or TipoMovimientoCaja.IngresoManual
+                     || (m.TipoMovimiento == TipoMovimientoCaja.Ajuste && m.Monto > 0))
+            .Sum(m => m.Monto);
+
+        var egresos = movimientosSesion
+            .Where(m => m.TipoMovimiento is TipoMovimientoCaja.Gasto
+                                         or TipoMovimientoCaja.Retiro
+                     || (m.TipoMovimiento == TipoMovimientoCaja.Ajuste && m.Monto < 0))
+            .Sum(m => Math.Abs(m.Monto));
+
+        var montoFinalEsperado = sesion.MontoInicial + ingresos - egresos;
+
+        var resultado = await _cajaRepository.CerrarSesionAsync(
+            sesion.Id,
+            dto.MontoFinalReal,
+            montoFinalEsperado,
+            usuarioId,
+            dto.Observaciones);
+
+        return MapSesionToResponse(resultado);
+    }
+
+    public async Task<IEnumerable<CajaSesionResponseDto>> GetHistorialSesionesAsync(Guid cajaId)
+    {
+        var sesiones = await _cajaRepository.GetSesionesByCajaAsync(cajaId);
+        return sesiones.Select(MapSesionToResponse);
+    }
+
     // ── Mappers ───────────────────────────────────────────────────────────────
 
     private static CajaResponseDto MapToResponse(Caja c) => new()
@@ -207,5 +300,26 @@ public class CajaService
             PrecioServicio    = m.Turno.PrecioServicio,
             TotalCobrado      = m.Turno.TotalCobrado,
         },
+    };
+
+    private static CajaSesionResponseDto MapSesionToResponse(CajaSesion s) => new()
+    {
+        Id                    = s.Id,
+        CajaId                = s.CajaId,
+        FechaApertura         = s.FechaApertura,
+        FechaCierre           = s.FechaCierre,
+        MontoInicial          = s.MontoInicial,
+        MontoFinalEsperado    = s.MontoFinalEsperado,
+        MontoFinalReal        = s.MontoFinalReal,
+        Diferencia            = s.Diferencia,
+        Estado                = s.Estado.ToString(),
+        UsuarioAperturaNombre = s.UsuarioApertura is not null
+                                  ? $"{s.UsuarioApertura.Nombre} {s.UsuarioApertura.Apellido}".Trim()
+                                  : null,
+        UsuarioCierreNombre   = s.UsuarioCierre is not null
+                                  ? $"{s.UsuarioCierre.Nombre} {s.UsuarioCierre.Apellido}".Trim()
+                                  : null,
+        ObservacionesApertura = s.ObservacionesApertura,
+        ObservacionesCierre   = s.ObservacionesCierre,
     };
 }

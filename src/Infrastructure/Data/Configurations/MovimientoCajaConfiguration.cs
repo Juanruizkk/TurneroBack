@@ -55,5 +55,13 @@ public class MovimientoCajaConfiguration : IEntityTypeConfiguration<MovimientoCa
             .WithOne(p => p.MovimientoCaja)
             .HasForeignKey<PagoTurno>(p => p.MovimientoCajaId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(m => m.CajaSesionId).IsRequired(false);
+
+        builder.HasOne(m => m.CajaSesion)
+            .WithMany(s => s.Movimientos)
+            .HasForeignKey(m => m.CajaSesionId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
