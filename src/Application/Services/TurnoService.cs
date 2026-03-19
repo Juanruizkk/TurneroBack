@@ -14,6 +14,7 @@ public class TurnoService
     private readonly IEmailService                _emailService;
     private readonly IComentarioTurnoRepository   _comentarioRepository;
     private readonly string                       _frontendUrl;
+    private readonly ITurnoNotificacionService?   _notificaciones;
 
     public TurnoService(
         ITurnoRepository turnoRepository,
@@ -22,7 +23,8 @@ public class TurnoService
         ISucursalRepository sucursalRepository,
         IEmailService emailService,
         IComentarioTurnoRepository comentarioRepository,
-        string frontendUrl)
+        string frontendUrl,
+        ITurnoNotificacionService? notificaciones = null)
     {
         _turnoRepository      = turnoRepository;
         _servicioRepository   = servicioRepository;
@@ -31,6 +33,7 @@ public class TurnoService
         _emailService         = emailService;
         _comentarioRepository = comentarioRepository;
         _frontendUrl          = frontendUrl;
+        _notificaciones       = notificaciones;
     }
 
     public async Task<IEnumerable<TurnoResponseDto>> GetAllAsync()
@@ -151,7 +154,17 @@ public class TurnoService
             }
         }
 
-        return MapToResponse(turnoCompleto);
+        var responseDto = MapToResponse(turnoCompleto);
+
+        // Notificación en tiempo real solo si el turno quedó confirmado de inmediato
+        // (si quedó en PendientePago, la notificación se dispara cuando se confirme el pago)
+        if (_notificaciones is not null && estadoInicial == EstadoTurno.Confirmado)
+        {
+            try { await _notificaciones.NotificarNuevoTurnoAsync(responseDto); }
+            catch { /* SignalR es no-crítico */ }
+        }
+
+        return responseDto;
     }
 
     public async Task<TurnoResponseDto?> UpdateEstadoAsync(Guid id, UpdateTurnoDto dto)
@@ -258,7 +271,17 @@ public class TurnoService
             }
         }
 
-        return MapToResponse(turno);
+        var turnoDto = MapToResponse(turno);
+
+        // Notificación en tiempo real para cancelaciones
+        if (_notificaciones is not null
+            && (estadoNuevo == EstadoTurno.CanceladoStaff || estadoNuevo == EstadoTurno.CanceladoCliente))
+        {
+            try { await _notificaciones.NotificarCancelacionAsync(turnoDto); }
+            catch { /* SignalR es no-crítico */ }
+        }
+
+        return turnoDto;
     }
 
     public async Task<bool> DeleteAsync(Guid id)

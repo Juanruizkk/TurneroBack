@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Xunit;
 using TurneroApp.Application.DTOs.Pagos;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Application.Services;

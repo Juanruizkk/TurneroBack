@@ -41,19 +41,26 @@ public class TurnoPagoExpirationService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<ITurnoRepository>();
 
-        var limite   = DateTime.Now.AddMinutes(-TimeoutMinutos);
-        var vencidos = (await repo.GetPendientePagoVencidosAsync(limite)).ToList();
+        try
+        {
+            var limite   = DateTime.Now.AddMinutes(-TimeoutMinutos);
+            var vencidos = (await repo.GetPendientePagoVencidosAsync(limite)).ToList();
 
-        if (vencidos.Count == 0) return;
+            if (vencidos.Count == 0) return;
 
-        foreach (var turno in vencidos)
-            turno.Estado = EstadoTurno.PagoRechazado;
+            foreach (var turno in vencidos)
+                turno.Estado = EstadoTurno.PagoRechazado;
 
-        repo.UpdateRange(vencidos);
-        await repo.SaveChangesAsync();
+            repo.UpdateRange(vencidos);
+            await repo.SaveChangesAsync();
 
-        _logger.LogInformation(
-            "TurnoPagoExpirationService: {Count} turno(s) PendientePago expirados → PagoRechazado.",
-            vencidos.Count);
+            _logger.LogInformation(
+                "TurnoPagoExpirationService: {Count} turno(s) PendientePago expirados → PagoRechazado.",
+                vencidos.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al expirar turnos PendientePago abandonados.");
+        }
     }
 }

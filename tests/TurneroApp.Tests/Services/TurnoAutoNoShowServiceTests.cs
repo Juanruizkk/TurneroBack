@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Xunit;
 using TurneroApp.Api.Services;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Domain.Entities;

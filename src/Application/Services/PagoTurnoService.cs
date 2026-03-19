@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TurneroApp.Application.DTOs.Pagos;
+using TurneroApp.Application.DTOs.Turno;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Domain.Entities;
 using TurneroApp.Domain.Enums;
@@ -8,30 +9,33 @@ namespace TurneroApp.Application.Services;
 
 public sealed class PagoTurnoService : IPagoTurnoService
 {
-    private readonly ITurnoRepository         _turnoRepo;
-    private readonly ICajaRepository          _cajaRepo;
-    private readonly ISucursalRepository      _sucursalRepo;
-    private readonly IMercadoPagoGateway      _mpGateway;
-    private readonly IEmailService            _emailService;
+    private readonly ITurnoRepository          _turnoRepo;
+    private readonly ICajaRepository           _cajaRepo;
+    private readonly ISucursalRepository       _sucursalRepo;
+    private readonly IMercadoPagoGateway       _mpGateway;
+    private readonly IEmailService             _emailService;
     private readonly ILogger<PagoTurnoService> _logger;
-    private readonly string                   _frontendUrl;
+    private readonly string                    _frontendUrl;
+    private readonly ITurnoNotificacionService? _notificaciones;
 
     public PagoTurnoService(
-        ITurnoRepository          turnoRepo,
-        ICajaRepository           cajaRepo,
-        ISucursalRepository       sucursalRepo,
-        IMercadoPagoGateway       mpGateway,
-        IEmailService             emailService,
-        ILogger<PagoTurnoService> logger,
-        string                    frontendUrl)
+        ITurnoRepository           turnoRepo,
+        ICajaRepository            cajaRepo,
+        ISucursalRepository        sucursalRepo,
+        IMercadoPagoGateway        mpGateway,
+        IEmailService              emailService,
+        ILogger<PagoTurnoService>  logger,
+        string                     frontendUrl,
+        ITurnoNotificacionService? notificaciones = null)
     {
-        _turnoRepo    = turnoRepo;
-        _cajaRepo     = cajaRepo;
-        _sucursalRepo = sucursalRepo;
-        _mpGateway    = mpGateway;
-        _emailService = emailService;
-        _logger       = logger;
-        _frontendUrl  = frontendUrl;
+        _turnoRepo      = turnoRepo;
+        _cajaRepo       = cajaRepo;
+        _sucursalRepo   = sucursalRepo;
+        _mpGateway      = mpGateway;
+        _emailService   = emailService;
+        _logger         = logger;
+        _frontendUrl    = frontendUrl;
+        _notificaciones = notificaciones;
     }
 
     /// <inheritdoc/>
@@ -161,6 +165,41 @@ public sealed class PagoTurnoService : IPagoTurnoService
 
         _logger.LogInformation(
             "Turno {TurnoId} confirmado y seña de {Monto} registrada en Caja.", turnoId, pago.Amount);
+
+        // Notificación en tiempo real: el turno ahora está confirmado
+        if (_notificaciones is not null)
+        {
+            try
+            {
+                var turnoDto = new TurnoResponseDto
+                {
+                    Id               = turno.Id,
+                    SucursalId       = turno.SucursalId,
+                    ClienteId        = turno.ClienteId,
+                    ClienteNombre    = turno.Cliente is not null
+                                       ? $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim()
+                                       : string.Empty,
+                    ClienteTelefono  = turno.Cliente?.Telefono ?? string.Empty,
+                    ServicioId       = turno.ServicioId,
+                    ServicioNombre   = turno.Servicio?.Nombre ?? string.Empty,
+                    ProfesionalId    = turno.ProfesionalId,
+                    ProfesionalNombre = turno.Profesional is not null
+                                       ? $"{turno.Profesional.Nombre} {turno.Profesional.Apellido}".Trim()
+                                       : string.Empty,
+                    FechaHoraInicio  = turno.FechaHoraInicio,
+                    FechaHoraFin     = turno.FechaHoraFin,
+                    Estado           = turno.Estado,
+                    Origen           = turno.Origen,
+                    Observaciones    = turno.Observaciones,
+                    TokenGestion     = turno.TokenGestion,
+                    PrecioServicio   = turno.PrecioServicio,
+                    MontoSena        = turno.MontoSena,
+                    TotalCobrado     = turno.TotalCobrado,
+                };
+                await _notificaciones.NotificarNuevoTurnoAsync(turnoDto);
+            }
+            catch { /* SignalR es no-crítico */ }
+        }
 
         // Enviar email de confirmación al cliente
         var clienteEmail = turno.Cliente?.Email;
