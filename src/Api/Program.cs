@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using TurneroApp.Api.Hubs;
 using TurneroApp.Api.Services;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Application.Services;
@@ -29,6 +30,20 @@ builder.Services
             ValidIssuer              = builder.Configuration["Jwt:Issuer"],
             ValidAudience            = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        };
+
+        // SignalR: leer el token JWT desde el query string ?access_token=...
+        // (los WebSockets no soportan headers de Authorization)
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path        = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -61,8 +76,9 @@ builder.Services.AddScoped<TurnoService>(sp =>
     var sucursalRepo   = sp.GetRequiredService<ISucursalRepository>();
     var emailService   = sp.GetRequiredService<IEmailService>();
     var comentarioRepo = sp.GetRequiredService<IComentarioTurnoRepository>();
+    var notificaciones = sp.GetRequiredService<ITurnoNotificacionService>();
     var frontendUrl    = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
-    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl);
+    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl, notificaciones);
 });
 builder.Services.AddScoped<CajaService>();
 builder.Services.AddScoped<SuperAdminService>();
@@ -84,7 +100,8 @@ builder.Services.AddScoped<IPagoTurnoService>(sp => new PagoTurnoService(
     sp.GetRequiredService<IMercadoPagoGateway>(),
     sp.GetRequiredService<IEmailService>(),
     sp.GetRequiredService<ILogger<PagoTurnoService>>(),
-    builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173"
+    builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173",
+    sp.GetRequiredService<ITurnoNotificacionService>()
 ));
 builder.Services.AddHostedService<TurnoAutoNoShowService>();
 builder.Services.AddHostedService<RecordatoriosEmailBackgroundService>();
@@ -109,6 +126,10 @@ builder.Services.AddScoped<UsuarioService>(sp =>
     var frontendUrl  = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
     return new UsuarioService(usuarioRepo, sucursalRepo, emailService, frontendUrl);
 });
+
+// ─── SignalR ─────────────────────────────────────────────────────────────────
+builder.Services.AddSignalR();
+builder.Services.AddScoped<ITurnoNotificacionService, TurnoNotificacionService>();
 
 // ─── API & Swagger ───────────────────────────────────────────────────────────
 builder.Services.AddControllers()
@@ -196,6 +217,7 @@ else
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<TurneroHub>("/hubs/turnero");
 
 // ─── Auto-migrate on startup (development only) ───────────────────────────────
 if (app.Environment.IsDevelopment())
