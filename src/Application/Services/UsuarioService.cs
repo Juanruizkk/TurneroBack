@@ -11,6 +11,8 @@ public class UsuarioService
     private readonly ISucursalRepository _sucursalRepository;
     private readonly IEmailService _emailService;
     private readonly string _frontendUrl;
+    private readonly IHorarioLaboralRepository _horarioRepo;
+    private readonly IUsuarioServicioRepository _usuarioServicioRepo;
 
     private static readonly HashSet<PermisoSistema> PermisosValidos = new()
     {
@@ -25,12 +27,16 @@ public class UsuarioService
         IUsuarioRepository usuarioRepository,
         ISucursalRepository sucursalRepository,
         IEmailService emailService,
-        string frontendUrl)
+        string frontendUrl,
+        IHorarioLaboralRepository horarioRepo,
+        IUsuarioServicioRepository usuarioServicioRepo)
     {
-        _usuarioRepository  = usuarioRepository;
-        _sucursalRepository = sucursalRepository;
-        _emailService       = emailService;
-        _frontendUrl        = frontendUrl;
+        _usuarioRepository   = usuarioRepository;
+        _sucursalRepository  = sucursalRepository;
+        _emailService        = emailService;
+        _frontendUrl         = frontendUrl;
+        _horarioRepo         = horarioRepo;
+        _usuarioServicioRepo = usuarioServicioRepo;
     }
 
     // ─── Queries ──────────────────────────────────────────────────────────────
@@ -191,6 +197,50 @@ public class UsuarioService
         await _usuarioRepository.SaveChangesAsync();
     }
 
+    // ─── Horarios y Servicios ─────────────────────────────────────────────────
+
+    public async Task<List<HorarioLaboralDto>> GetHorariosAsync(Guid id)
+    {
+        var usuario = await _usuarioRepository.GetByIdConPermisosAsync(id)
+            ?? throw new InvalidOperationException($"No se encontró el usuario con id {id}.");
+        return usuario.HorariosLaborales.Select(MapHorario).ToList();
+    }
+
+    public async Task ReplaceHorariosAsync(Guid id, List<HorarioLaboralDto> dtos)
+    {
+        _ = await _usuarioRepository.GetByIdAsync(id)
+            ?? throw new InvalidOperationException($"No se encontró el usuario con id {id}.");
+
+        var entidades = dtos.Select(d => new HorarioLaboral
+        {
+            Id        = Guid.NewGuid(),
+            UsuarioId = id,
+            DiaSemana = (DayOfWeek)d.DiaSemana,
+            HoraDesde = TimeSpan.Parse(d.HoraDesde),
+            HoraHasta = TimeSpan.Parse(d.HoraHasta),
+            Activo    = d.Activo,
+        });
+
+        await _horarioRepo.ReplaceAsync(id, entidades);
+        await _horarioRepo.SaveChangesAsync();
+    }
+
+    public async Task<List<Guid>> GetServiciosAsync(Guid id)
+    {
+        var usuario = await _usuarioRepository.GetByIdConPermisosAsync(id)
+            ?? throw new InvalidOperationException($"No se encontró el usuario con id {id}.");
+        return usuario.Servicios.Select(s => s.ServicioId).ToList();
+    }
+
+    public async Task ReplaceServiciosAsync(Guid id, List<Guid> servicioIds)
+    {
+        _ = await _usuarioRepository.GetByIdAsync(id)
+            ?? throw new InvalidOperationException($"No se encontró el usuario con id {id}.");
+
+        await _usuarioServicioRepo.ReplaceAsync(id, servicioIds);
+        await _usuarioServicioRepo.SaveChangesAsync();
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private static void ValidarPermisos(IEnumerable<PermisoSistema> permisos)
@@ -203,14 +253,19 @@ public class UsuarioService
 
     private static UsuarioResponseDto MapToResponse(Usuario u) => new()
     {
-        Id         = u.Id,
-        SucursalId = u.SucursalId,
-        Nombre     = u.Nombre,
-        Apellido   = u.Apellido,
-        Email      = u.Email,
-        Telefono       = u.Telefono,
-        Rol            = u.Rol,
-        Estado         = u.Estado,
-        Permisos       = u.Permisos.Select(p => p.Permiso).ToList()
+        Id               = u.Id,
+        SucursalId       = u.SucursalId,
+        Nombre           = u.Nombre,
+        Apellido         = u.Apellido,
+        Email            = u.Email,
+        Telefono         = u.Telefono,
+        Rol              = u.Rol,
+        Estado           = u.Estado,
+        Permisos         = u.Permisos.Select(p => p.Permiso).ToList(),
+        HorariosLaborales = u.HorariosLaborales.Select(MapHorario).ToList(),
+        ServiciosIds     = u.Servicios.Select(s => s.ServicioId).ToList(),
     };
+
+    private static HorarioLaboralDto MapHorario(HorarioLaboral h) =>
+        new((int)h.DiaSemana, h.HoraDesde.ToString(@"hh\:mm"), h.HoraHasta.ToString(@"hh\:mm"), h.Activo);
 }

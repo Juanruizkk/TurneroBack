@@ -21,21 +21,27 @@ public class PublicoService
         [DayOfWeek.Sunday]    = "Domingo",
     };
 
-    private readonly ISucursalRepository _sucursalRepo;
-    private readonly IServicioRepository _servicioRepo;
-    private readonly ITurnoRepository    _turnoRepo;
-    private readonly IUsuarioRepository  _usuarioRepo;
+    private readonly ISucursalRepository        _sucursalRepo;
+    private readonly IServicioRepository        _servicioRepo;
+    private readonly ITurnoRepository           _turnoRepo;
+    private readonly IUsuarioRepository         _usuarioRepo;
+    private readonly IHorarioLaboralRepository  _horarioRepo;
+    private readonly IUsuarioServicioRepository _usuarioServicioRepo;
 
     public PublicoService(
-        ISucursalRepository sucursalRepo,
-        IServicioRepository servicioRepo,
-        ITurnoRepository    turnoRepo,
-        IUsuarioRepository  usuarioRepo)
+        ISucursalRepository        sucursalRepo,
+        IServicioRepository        servicioRepo,
+        ITurnoRepository           turnoRepo,
+        IUsuarioRepository         usuarioRepo,
+        IHorarioLaboralRepository  horarioRepo,
+        IUsuarioServicioRepository usuarioServicioRepo)
     {
-        _sucursalRepo = sucursalRepo;
-        _servicioRepo = servicioRepo;
-        _turnoRepo    = turnoRepo;
-        _usuarioRepo  = usuarioRepo;
+        _sucursalRepo        = sucursalRepo;
+        _servicioRepo        = servicioRepo;
+        _turnoRepo           = turnoRepo;
+        _usuarioRepo         = usuarioRepo;
+        _horarioRepo         = horarioRepo;
+        _usuarioServicioRepo = usuarioServicioRepo;
     }
 
     // ─── Perfil público ───────────────────────────────────────────────────────
@@ -124,6 +130,15 @@ public class PublicoService
         var turnosDelDia = (await _turnoRepo.GetActivosSucursalEnRangoAsync(sucursalId, diaInicio, diaFin))
             .ToList();
 
+        // Horarios y servicios por profesional (carga en batch — solo para usuarios reales)
+        Dictionary<Guid, List<Domain.Entities.HorarioLaboral>> horariosPorProf = new();
+        Dictionary<Guid, List<Domain.Entities.UsuarioServicio>> serviciosPorProf = new();
+        if (verificarConflictos)
+        {
+            horariosPorProf  = await _horarioRepo.GetByUsuariosAsync(profesionales);
+            serviciosPorProf = await _usuarioServicioRepo.GetByUsuariosAsync(profesionales);
+        }
+
         // 6. Generar slots por franja
         var resultado = new List<SlotDisponibleDto>();
         var now   = DateTime.Now;           // hora local, igual que los slots del horario
@@ -149,10 +164,32 @@ public class PublicoService
 
                 // Profesionales libres para este slot (uno por profesional disponible)
                 var profesionalesLibres = profesionales.Where(profId =>
-                    !turnosDelDia.Any(t =>
-                        t.ProfesionalId == profId &&
-                        t.FechaHoraInicio < slotFin &&
-                        t.FechaHoraFin    > slotInicio)).ToList();
+                {
+                    // Conflicto con turno existente
+                    if (turnosDelDia.Any(t =>
+                            t.ProfesionalId == profId &&
+                            t.FechaHoraInicio < slotFin &&
+                            t.FechaHoraFin    > slotInicio)) return false;
+
+                    // Filtro por horario laboral (solo si el profesional tiene horarios configurados)
+                    if (horariosPorProf.TryGetValue(profId, out var horarios) && horarios.Count > 0)
+                    {
+                        var slotHoraInicio = slotInicio.TimeOfDay;
+                        var slotHoraFin    = slotFin.TimeOfDay;
+                        if (!horarios.Any(h =>
+                                h.Activo &&
+                                h.DiaSemana == fecha.DayOfWeek &&
+                                h.HoraDesde <= slotHoraInicio &&
+                                h.HoraHasta >= slotHoraFin))
+                            return false;
+                    }
+
+                    // Filtro por servicio (solo si el profesional tiene servicios configurados)
+                    if (serviciosPorProf.TryGetValue(profId, out var svcs) && svcs.Count > 0)
+                        if (!svcs.Any(s => s.ServicioId == servicioId)) return false;
+
+                    return true;
+                }).ToList();
 
                 foreach (var profId in profesionalesLibres)
                 {

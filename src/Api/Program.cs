@@ -63,6 +63,8 @@ builder.Services.AddScoped<IComentarioTurnoRepository, ComentarioTurnoRepository
 builder.Services.AddScoped<IAdjuntoTurnoRepository, AdjuntoTurnoRepository>();
 builder.Services.AddScoped<ICajaRepository, CajaRepository>();
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+builder.Services.AddScoped<IHorarioLaboralRepository, HorarioLaboralRepository>();
+builder.Services.AddScoped<IUsuarioServicioRepository, UsuarioServicioRepository>();
 
 // ─── Application Services ────────────────────────────────────────────────────
 builder.Services.AddScoped<SucursalService>();
@@ -78,14 +80,22 @@ builder.Services.AddScoped<TurnoService>(sp =>
     var comentarioRepo = sp.GetRequiredService<IComentarioTurnoRepository>();
     var notificaciones = sp.GetRequiredService<ITurnoNotificacionService>();
     var frontendUrl    = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
-    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl, notificaciones);
+    var horarioRepo         = sp.GetRequiredService<IHorarioLaboralRepository>();
+    var usuarioServicioRepo = sp.GetRequiredService<IUsuarioServicioRepository>();
+    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl, notificaciones, horarioRepo, usuarioServicioRepo);
 });
 builder.Services.AddScoped<CajaService>();
 builder.Services.AddScoped<SuperAdminService>();
 builder.Services.AddScoped<AjustesService>();
 builder.Services.AddScoped<IAdjuntoService, CloudinaryService>();
 builder.Services.AddScoped<AdjuntoTurnoService>();
-builder.Services.AddScoped<PublicoService>();
+builder.Services.AddScoped<PublicoService>(sp => new PublicoService(
+    sp.GetRequiredService<ISucursalRepository>(),
+    sp.GetRequiredService<IServicioRepository>(),
+    sp.GetRequiredService<ITurnoRepository>(),
+    sp.GetRequiredService<IUsuarioRepository>(),
+    sp.GetRequiredService<IHorarioLaboralRepository>(),
+    sp.GetRequiredService<IUsuarioServicioRepository>()));
 builder.Services.AddScoped<InvitacionService>();
 builder.Services.AddScoped<JwtService>();
 
@@ -124,7 +134,9 @@ builder.Services.AddScoped<UsuarioService>(sp =>
     var sucursalRepo = sp.GetRequiredService<ISucursalRepository>();
     var emailService = sp.GetRequiredService<IEmailService>();
     var frontendUrl  = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
-    return new UsuarioService(usuarioRepo, sucursalRepo, emailService, frontendUrl);
+    return new UsuarioService(usuarioRepo, sucursalRepo, emailService, frontendUrl,
+        sp.GetRequiredService<IHorarioLaboralRepository>(),
+        sp.GetRequiredService<IUsuarioServicioRepository>());
 });
 
 // ─── SignalR ─────────────────────────────────────────────────────────────────

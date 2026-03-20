@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Usuario;
 using TurneroApp.Application.Services;
+using TurneroApp.Domain.Entities;
 
 namespace TurneroApp.Api.Controllers;
 
@@ -111,6 +112,74 @@ public class UsuariosController : ControllerBase
             return ex.Message.Contains("No se encontró")
                 ? NotFound(new { message = ex.Message })
                 : BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // GET /api/usuarios/{id}/horarios
+    [HttpGet("{id:guid}/horarios")]
+    [ProducesResponseType(typeof(List<HorarioLaboralDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetHorarios(Guid id)
+    {
+        try
+        {
+            var horarios = await _usuarioService.GetHorariosAsync(id);
+            return Ok(horarios);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    // PUT /api/usuarios/{id}/horarios
+    [HttpPut("{id:guid}/horarios")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PutHorarios(Guid id, [FromBody] List<HorarioLaboralDto> dtos)
+    {
+        try
+        {
+            await _usuarioService.ReplaceHorariosAsync(id, dtos);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    // GET /api/usuarios/{id}/servicios
+    [HttpGet("{id:guid}/servicios")]
+    [ProducesResponseType(typeof(List<Guid>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetServicios(Guid id)
+    {
+        try
+        {
+            var servicios = await _usuarioService.GetServiciosAsync(id);
+            return Ok(servicios);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    // PUT /api/usuarios/{id}/servicios
+    [HttpPut("{id:guid}/servicios")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PutServicios(Guid id, [FromBody] List<Guid> servicioIds)
+    {
+        try
+        {
+            await _usuarioService.ReplaceServiciosAsync(id, servicioIds);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
         }
     }
 

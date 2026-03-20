@@ -18,4 +18,10 @@ public class UsuarioResponseDto
     /// Lista de permisos efectivos del usuario.
     /// </summary>
     public List<PermisoSistema> Permisos { get; set; } = new();
+
+    /// <summary>Horarios laborales configurados. Vacío = sin restricción.</summary>
+    public List<HorarioLaboralDto> HorariosLaborales { get; set; } = new();
+
+    /// <summary>IDs de servicios que puede realizar. Vacío = todos los servicios.</summary>
+    public List<Guid> ServiciosIds { get; set; } = new();
 }

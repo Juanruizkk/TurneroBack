@@ -715,6 +715,21 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.ToTable("usuario_permisos", (string)null);
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.UsuarioServicio", b =>
+                {
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ServicioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UsuarioId", "ServicioId");
+
+                    b.HasIndex("ServicioId");
+
+                    b.ToTable("usuario_servicios", (string)null);
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.AdjuntoTurno", b =>
                 {
                     b.HasOne("TurneroApp.Domain.Entities.Usuario", "Autor")
@@ -959,6 +974,25 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Navigation("Usuario");
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.UsuarioServicio", b =>
+                {
+                    b.HasOne("TurneroApp.Domain.Entities.Servicio", "Servicio")
+                        .WithMany()
+                        .HasForeignKey("ServicioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TurneroApp.Domain.Entities.Usuario", "Usuario")
+                        .WithMany("Servicios")
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Servicio");
+
+                    b.Navigation("Usuario");
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.Caja", b =>
                 {
                     b.Navigation("Movimientos");
@@ -1023,6 +1057,8 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Navigation("MovimientosRegistrados");
 
                     b.Navigation("Permisos");
+
+                    b.Navigation("Servicios");
 
                     b.Navigation("TurnosComoProfesional");
                 });

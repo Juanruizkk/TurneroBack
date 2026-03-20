@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<UsuarioPermiso> UsuariosPermisos => Set<UsuarioPermiso>();
     public DbSet<HorarioLaboral> HorariosLaborales => Set<HorarioLaboral>();
+    public DbSet<UsuarioServicio> UsuarioServicios => Set<UsuarioServicio>();
     public DbSet<Servicio> Servicios => Set<Servicio>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Turno> Turnos => Set<Turno>();
