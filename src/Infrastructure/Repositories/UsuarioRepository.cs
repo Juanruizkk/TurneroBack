@@ -16,6 +16,8 @@ public class UsuarioRepository : GenericRepository<Usuario>, IUsuarioRepository
     {
         return await _context.Usuarios
             .Include(u => u.Permisos)
+            .Include(u => u.HorariosLaborales)
+            .Include(u => u.Servicios)
             .FirstOrDefaultAsync(u => u.Id == id);
     }
 
@@ -24,6 +26,8 @@ public class UsuarioRepository : GenericRepository<Usuario>, IUsuarioRepository
     {
         return await _context.Usuarios
             .Include(u => u.Permisos)
+            .Include(u => u.HorariosLaborales)
+            .Include(u => u.Servicios)
             .Where(u => u.SucursalId == sucursalId)
             .OrderBy(u => u.Apellido)
             .ThenBy(u => u.Nombre)

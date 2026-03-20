@@ -15,6 +15,8 @@ public class TurnoService
     private readonly IComentarioTurnoRepository   _comentarioRepository;
     private readonly string                       _frontendUrl;
     private readonly ITurnoNotificacionService?   _notificaciones;
+    private readonly IHorarioLaboralRepository?   _horarioRepo;
+    private readonly IUsuarioServicioRepository?  _usuarioServicioRepo;
 
     public TurnoService(
         ITurnoRepository turnoRepository,
@@ -24,7 +26,9 @@ public class TurnoService
         IEmailService emailService,
         IComentarioTurnoRepository comentarioRepository,
         string frontendUrl,
-        ITurnoNotificacionService? notificaciones = null)
+        ITurnoNotificacionService? notificaciones = null,
+        IHorarioLaboralRepository? horarioRepo = null,
+        IUsuarioServicioRepository? usuarioServicioRepo = null)
     {
         _turnoRepository      = turnoRepository;
         _servicioRepository   = servicioRepository;
@@ -34,6 +38,8 @@ public class TurnoService
         _comentarioRepository = comentarioRepository;
         _frontendUrl          = frontendUrl;
         _notificaciones       = notificaciones;
+        _horarioRepo          = horarioRepo;
+        _usuarioServicioRepo  = usuarioServicioRepo;
     }
 
     public async Task<IEnumerable<TurnoResponseDto>> GetAllAsync()
@@ -69,6 +75,31 @@ public class TurnoService
             ?? throw new InvalidOperationException($"Cliente con Id {dto.ClienteId} no encontrado.");
 
         var fechaHoraFin = dto.FechaHoraInicio.AddMinutes(servicio.DuracionAgendaMin);
+
+        // Validar horario laboral del profesional (solo si tiene horarios configurados)
+        if (_horarioRepo is not null)
+        {
+            var horarios = await _horarioRepo.GetByUsuarioIdAsync(dto.ProfesionalId);
+            if (horarios.Count > 0)
+            {
+                var ok = horarios.Any(h =>
+                    h.Activo &&
+                    h.DiaSemana == dto.FechaHoraInicio.DayOfWeek &&
+                    h.HoraDesde <= dto.FechaHoraInicio.TimeOfDay &&
+                    h.HoraHasta >= fechaHoraFin.TimeOfDay);
+                if (!ok)
+                    throw new InvalidOperationException(
+                        "El profesional no tiene disponibilidad en ese horario.");
+            }
+        }
+
+        // Validar que el profesional ofrece el servicio (solo si tiene servicios configurados)
+        if (_usuarioServicioRepo is not null)
+        {
+            var serviciosProf = await _usuarioServicioRepo.GetByUsuarioIdAsync(dto.ProfesionalId);
+            if (serviciosProf.Count > 0 && !serviciosProf.Any(s => s.ServicioId == dto.ServicioId))
+                throw new InvalidOperationException("El profesional no ofrece este servicio.");
+        }
 
         var hayConflicto = await _turnoRepository.ExisteConflictoHorarioAsync(
             dto.ProfesionalId, dto.FechaHoraInicio, fechaHoraFin);

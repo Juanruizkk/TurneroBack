@@ -25,6 +25,7 @@ public class Usuario
     public Sucursal Sucursal { get; set; } = null!;
     public ICollection<UsuarioPermiso> Permisos { get; set; } = new List<UsuarioPermiso>();
     public ICollection<HorarioLaboral> HorariosLaborales { get; set; } = new List<HorarioLaboral>();
+    public ICollection<UsuarioServicio> Servicios { get; set; } = new List<UsuarioServicio>();
     public ICollection<MovimientoCaja> MovimientosRegistrados { get; set; } = new List<MovimientoCaja>();
     public ICollection<Turno> TurnosComoProfesional { get; set; } = new List<Turno>();
     public ICollection<ComentarioTurno> ComentariosRealizados { get; set; } = new List<ComentarioTurno>();
