@@ -49,6 +49,12 @@ public interface IEmailService
         string clienteNombre,
         DateTime fechaHoraInicio);
 
+    /// <summary>Envía el link de recuperación de contraseña al usuario.</summary>
+    Task EnviarRecuperacionContrasenaAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string linkRecuperacion);
+
     /// <summary>
     /// Recordatorio automático enviado antes del turno.
     /// <paramref name="es24h"/>: <c>true</c> para el recordatorio de 24 h, <c>false</c> para el de 3 h.

@@ -20,6 +20,7 @@ public class CajaRepository : GenericRepository<Caja>, ICajaRepository
     {
         var query = _context.MovimientosCaja
             .Include(m => m.Usuario)
+            .Include(m => m.PagoTurno)
             .Include(m => m.Turno)
                 .ThenInclude(t => t!.Cliente)
             .Include(m => m.Turno)
@@ -71,6 +72,9 @@ public class CajaRepository : GenericRepository<Caja>, ICajaRepository
 
             await _context.SaveChangesAsync();
             await tx.CommitAsync();
+            // Cargar la nav prop para que el mapper la encuentre inmediatamente
+            if (pagoTurno is not null)
+                movimiento.PagoTurno = pagoTurno;
             return movimiento;
         }
         catch
@@ -96,6 +100,12 @@ public class CajaRepository : GenericRepository<Caja>, ICajaRepository
                      && m.TurnoId != null
                      && m.Fecha >= desde
                      && m.Fecha <= hasta)
+            .ToListAsync();
+
+    public async Task<IEnumerable<PagoTurno>> GetPagosByTurnoAsync(Guid turnoId)
+        => await _context.PagosTurno
+            .Where(p => p.TurnoId == turnoId)
+            .OrderBy(p => p.Fecha)
             .ToListAsync();
 
     // ── Sesiones de caja ──────────────────────────────────────────────────────

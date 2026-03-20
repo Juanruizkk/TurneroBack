@@ -682,11 +682,22 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("TokenRecuperacion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("TokenRecuperacionExpiracion")
+                        .HasColumnType("timestamptz");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InvitacionToken")
                         .IsUnique()
                         .HasFilter("\"InvitacionToken\" IS NOT NULL");
+
+                    b.HasIndex("TokenRecuperacion")
+                        .IsUnique()
+                        .HasFilter("\"TokenRecuperacion\" IS NOT NULL");
 
                     b.HasIndex("SucursalId", "Email")
                         .IsUnique();

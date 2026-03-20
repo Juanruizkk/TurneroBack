@@ -1,18 +1,20 @@
-using MailKit.Net.Smtp;
-using MailKit.Security;
 using Microsoft.Extensions.Configuration;
-using MimeKit;
+using Resend;
 using TurneroApp.Application.Interfaces;
 
 namespace TurneroApp.Infrastructure.Services;
 
-public class EmailService : IEmailService
+public class ResendEmailService : IEmailService
 {
-    private readonly IConfiguration _config;
+    private readonly IResend _resend;
+    private readonly string  _fromAddress;
 
-    public EmailService(IConfiguration config)
+    public ResendEmailService(IResend resend, IConfiguration config)
     {
-        _config = config;
+        _resend = resend;
+        var fromEmail = config["Resend:FromEmail"] ?? "noreply@turneroapp.com";
+        var fromName  = config["Resend:FromName"]  ?? "TurneroApp";
+        _fromAddress  = $"{fromName} <{fromEmail}>";
     }
 
     public Task EnviarInvitacionAsync(
@@ -23,7 +25,7 @@ public class EmailService : IEmailService
     {
         var asunto = $"Tu invitación para unirte a {nombreSucursal}";
         var cuerpo = PlantillaInvitacion(destinatarioNombre, nombreSucursal, linkInvitacion, esReenvio: false);
-        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
     public Task EnviarReenvioInvitacionAsync(
@@ -34,7 +36,7 @@ public class EmailService : IEmailService
     {
         var asunto = $"Nuevo enlace de invitación — {nombreSucursal}";
         var cuerpo = PlantillaInvitacion(destinatarioNombre, nombreSucursal, linkInvitacion, esReenvio: true);
-        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
     public Task EnviarConfirmacionTurnoAsync(
@@ -49,7 +51,7 @@ public class EmailService : IEmailService
     {
         var asunto = $"Turno confirmado en {nombreSucursal} — {fechaHoraInicio:dd/MM/yyyy HH:mm}";
         var cuerpo = PlantillaConfirmacionTurno(destinatarioNombre, nombreSucursal, servicioNombre, profesionalNombre, fechaHoraInicio, fechaHoraFin, cancelUrl);
-        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
     public Task EnviarCancelacionStaffAsync(
@@ -61,7 +63,7 @@ public class EmailService : IEmailService
     {
         var asunto = $"Tu turno en {nombreSucursal} fue cancelado";
         var cuerpo = PlantillaCancelacionStaff(destinatarioNombre, nombreSucursal, servicioNombre, fechaHoraInicio);
-        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
     public Task EnviarCancelacionClienteAsync(
@@ -73,7 +75,7 @@ public class EmailService : IEmailService
     {
         var asunto = $"Cancelación confirmada — {nombreSucursal}";
         var cuerpo = PlantillaCancelacionCliente(destinatarioNombre, nombreSucursal, servicioNombre, fechaHoraInicio);
-        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
     public Task EnviarAlertaLiberacionAgendaAsync(
@@ -86,7 +88,17 @@ public class EmailService : IEmailService
     {
         var asunto = $"Slot liberado — {servicioNombre} el {fechaHoraInicio:dd/MM HH:mm}";
         var cuerpo = PlantillaAlertaLiberacion(destinatarioNombre, nombreSucursal, servicioNombre, clienteNombre, fechaHoraInicio);
-        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
+    }
+
+    public Task EnviarRecuperacionContrasenaAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string linkRecuperacion)
+    {
+        var asunto = "Recuperación de contraseña — TurneroApp";
+        var cuerpo = PlantillaRecuperacionContrasena(destinatarioNombre, linkRecuperacion);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
     public Task EnviarRecordatorioAsync(
@@ -103,36 +115,21 @@ public class EmailService : IEmailService
         var etiqueta = es24h ? "mañana" : "en 3 horas";
         var asunto   = $"Recordatorio: tu turno en {nombreSucursal} es {etiqueta} — {fechaHoraInicio:dd/MM HH:mm}";
         var cuerpo   = PlantillaRecordatorio(destinatarioNombre, nombreSucursal, servicioNombre, profesionalNombre, fechaHoraInicio, fechaHoraFin, cancelUrl, es24h);
-        return EnviarAsync(destinatarioEmail, destinatarioNombre, asunto, cuerpo);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
-    // ─── Core SMTP ────────────────────────────────────────────────────────────
+    // ─── Core ─────────────────────────────────────────────────────────────────
 
-    private async Task EnviarAsync(
-        string destinatarioEmail,
-        string destinatarioNombre,
-        string asunto,
-        string cuerpoHtml)
+    private async Task EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml)
     {
-        var host      = _config["Smtp:Host"]      ?? throw new InvalidOperationException("Smtp:Host no configurado.");
-        var port      = int.Parse(_config["Smtp:Port"] ?? "587");
-        var username  = _config["Smtp:Username"]  ?? throw new InvalidOperationException("Smtp:Username no configurado.");
-        var password  = _config["Smtp:Password"]  ?? throw new InvalidOperationException("Smtp:Password no configurado.");
-        var fromEmail = _config["Smtp:FromEmail"] ?? username;
-        var fromName  = _config["Smtp:FromName"]  ?? "TurneroApp";
-
-        var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(fromName, fromEmail));
-        message.To.Add(new MailboxAddress(destinatarioNombre, destinatarioEmail));
-        message.Subject = asunto;
-
-        message.Body = new TextPart("html") { Text = cuerpoHtml };
-
-        using var client = new SmtpClient();
-        await client.ConnectAsync(host, port, SecureSocketOptions.StartTls);
-        await client.AuthenticateAsync(username, password);
-        await client.SendAsync(message);
-        await client.DisconnectAsync(quit: true);
+        var message = new EmailMessage
+        {
+            From     = _fromAddress,
+            Subject  = asunto,
+            HtmlBody = cuerpoHtml,
+        };
+        message.To.Add(destinatarioEmail);
+        await _resend.EmailSendAsync(message);
     }
 
     // ─── Templates ────────────────────────────────────────────────────────────
@@ -179,8 +176,6 @@ public class EmailService : IEmailService
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
-
-                    <!-- Header -->
                     <tr>
                       <td style="background:#B4697B;padding:32px 40px;text-align:center;">
                         <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
@@ -188,16 +183,12 @@ public class EmailService : IEmailService
                         </p>
                       </td>
                     </tr>
-
-                    <!-- Body -->
                     <tr>
                       <td style="padding:40px;">
                         <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">¡Tu turno está confirmado!</h2>
                         <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">
                           Hola <strong>{nombre}</strong>, te esperamos con todos los detalles a continuación.
                         </p>
-
-                        <!-- Detail card -->
                         <table width="100%" cellpadding="0" cellspacing="0"
                                style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:28px;">
                           <tr>
@@ -231,12 +222,9 @@ public class EmailService : IEmailService
                             </td>
                           </tr>
                         </table>
-
                         {cancelBlock}
                       </td>
                     </tr>
-
-                    <!-- Footer -->
                     <tr>
                       <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
                         <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
@@ -244,7 +232,6 @@ public class EmailService : IEmailService
                         </p>
                       </td>
                     </tr>
-
                   </table>
                 </td></tr>
               </table>
@@ -495,12 +482,12 @@ public class EmailService : IEmailService
         string cancelUrl,
         bool es24h)
     {
-        var cultura   = new System.Globalization.CultureInfo("es-AR");
-        var fechaStr  = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", cultura);
-        var horaStr   = $"{inicio:HH:mm} – {fin:HH:mm}";
-        var badge     = es24h ? "Recordatorio — mañana" : "Recordatorio — en 3 horas";
+        var cultura    = new System.Globalization.CultureInfo("es-AR");
+        var fechaStr   = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", cultura);
+        var horaStr    = $"{inicio:HH:mm} – {fin:HH:mm}";
+        var badge      = es24h ? "Recordatorio — mañana" : "Recordatorio — en 3 horas";
         var badgeColor = es24h ? "#6366f1" : "#f59e0b";
-        var intro = es24h
+        var intro      = es24h
             ? $"Hola <strong>{nombre}</strong>, te recordamos que mañana tenés un turno reservado."
             : $"Hola <strong>{nombre}</strong>, en menos de 3 horas tenés tu turno. ¡No lo olvides!";
 
@@ -532,8 +519,6 @@ public class EmailService : IEmailService
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
-
-                    <!-- Header -->
                     <tr>
                       <td style="background:#B4697B;padding:32px 40px;text-align:center;">
                         <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
@@ -541,21 +526,15 @@ public class EmailService : IEmailService
                         </p>
                       </td>
                     </tr>
-
-                    <!-- Body -->
                     <tr>
                       <td style="padding:40px;">
-                        <!-- Badge -->
                         <p style="margin:0 0 20px;display:inline-block;">
                           <span style="background:{badgeColor};color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.5px;padding:4px 12px;border-radius:999px;text-transform:uppercase;">
                             {badge}
                           </span>
                         </p>
-
                         <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">No olvides tu turno</h2>
                         <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">{intro}</p>
-
-                        <!-- Detail card -->
                         <table width="100%" cellpadding="0" cellspacing="0"
                                style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:28px;">
                           <tr>
@@ -589,12 +568,9 @@ public class EmailService : IEmailService
                             </td>
                           </tr>
                         </table>
-
                         {cancelBlock}
                       </td>
                     </tr>
-
-                    <!-- Footer -->
                     <tr>
                       <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
                         <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
@@ -602,7 +578,6 @@ public class EmailService : IEmailService
                         </p>
                       </td>
                     </tr>
-
                   </table>
                 </td></tr>
               </table>
@@ -617,8 +592,8 @@ public class EmailService : IEmailService
         string link,
         bool esReenvio)
     {
-        var titulo  = esReenvio ? "Nuevo enlace de invitación" : $"¡Hola, {nombre}!";
-        var intro   = esReenvio
+        var titulo = esReenvio ? "Nuevo enlace de invitación" : $"¡Hola, {nombre}!";
+        var intro  = esReenvio
             ? $"Te enviamos un nuevo enlace de acceso para <strong>{sucursal}</strong>. El enlace anterior ya no es válido."
             : $"Fuiste invitado/a a unirte al equipo de <strong>{sucursal}</strong> como miembro del panel de administración.";
 
@@ -634,8 +609,6 @@ public class EmailService : IEmailService
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
-
-                    <!-- Header -->
                     <tr>
                       <td style="background:#B4697B;padding:32px 40px;text-align:center;">
                         <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
@@ -643,8 +616,6 @@ public class EmailService : IEmailService
                         </p>
                       </td>
                     </tr>
-
-                    <!-- Body -->
                     <tr>
                       <td style="padding:40px;">
                         <h2 style="margin:0 0 12px;font-size:20px;color:#18181b;">{titulo}</h2>
@@ -653,8 +624,6 @@ public class EmailService : IEmailService
                           Hacé clic en el botón para establecer tu contraseña y acceder al panel.
                           El enlace es válido por <strong>7 días</strong>.
                         </p>
-
-                        <!-- CTA -->
                         <table cellpadding="0" cellspacing="0">
                           <tr>
                             <td style="border-radius:8px;background:#B4697B;">
@@ -665,15 +634,12 @@ public class EmailService : IEmailService
                             </td>
                           </tr>
                         </table>
-
                         <p style="margin:28px 0 0;font-size:13px;color:#a1a1aa;">
                           Si el botón no funciona, copiá y pegá este enlace en tu navegador:<br>
                           <a href="{link}" style="color:#B4697B;word-break:break-all;">{link}</a>
                         </p>
                       </td>
                     </tr>
-
-                    <!-- Footer -->
                     <tr>
                       <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
                         <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
@@ -681,7 +647,6 @@ public class EmailService : IEmailService
                         </p>
                       </td>
                     </tr>
-
                   </table>
                 </td></tr>
               </table>
@@ -689,4 +654,60 @@ public class EmailService : IEmailService
             </html>
             """;
     }
+
+    private static string PlantillaRecuperacionContrasena(string nombre, string link) => $"""
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>Recuperación de contraseña</title>
+        </head>
+        <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+            <tr><td align="center">
+              <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                <tr>
+                  <td style="background:#B4697B;padding:32px 40px;text-align:center;">
+                    <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
+                      ✦ TurneroApp
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:40px;">
+                    <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">Recuperá tu contraseña</h2>
+                    <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">
+                      Hola <strong>{nombre}</strong>, recibimos una solicitud para restablecer la contraseña de tu cuenta.
+                      Hacé clic en el botón de abajo para crear una nueva. El enlace expira en <strong>1 hora</strong>.
+                    </p>
+                    <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                      <tr>
+                        <td style="border-radius:8px;background:#B4697B;">
+                          <a href="{link}"
+                             style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
+                            Restablecer contraseña
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="margin:0 0 8px;font-size:13px;color:#a1a1aa;">
+                      Si el botón no funciona, copiá y pegá este enlace en tu navegador:<br>
+                      <a href="{link}" style="color:#B4697B;word-break:break-all;">{link}</a>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
+                    <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
+                      Si no solicitaste este cambio, podés ignorar este mensaje. Tu contraseña no será modificada.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+        </body>
+        </html>
+        """;
 }

@@ -10,18 +10,21 @@ namespace TurneroApp.Api.Controllers;
 [Produces("application/json")]
 public class AuthController : ControllerBase
 {
-    private readonly AuthService      _authService;
-    private readonly JwtService       _jwtService;
-    private readonly InvitacionService _invitacionService;
+    private readonly AuthService                    _authService;
+    private readonly JwtService                     _jwtService;
+    private readonly InvitacionService              _invitacionService;
+    private readonly RecuperacionContrasenaService  _recuperacionService;
 
     public AuthController(
         AuthService authService,
         JwtService jwtService,
-        InvitacionService invitacionService)
+        InvitacionService invitacionService,
+        RecuperacionContrasenaService recuperacionService)
     {
-        _authService       = authService;
-        _jwtService        = jwtService;
-        _invitacionService = invitacionService;
+        _authService         = authService;
+        _jwtService          = jwtService;
+        _invitacionService   = invitacionService;
+        _recuperacionService = recuperacionService;
     }
 
     // POST /api/auth/login
@@ -55,6 +58,36 @@ public class AuthController : ControllerBase
         {
             var info = await _invitacionService.ObtenerInfoAsync(token);
             return Ok(info);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // POST /api/auth/forgot-password
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        // Siempre 200 — no revelar si el email existe
+        await _recuperacionService.SolicitarAsync(dto.Email);
+        return Ok(new { message = "Si el email está registrado, recibirás un enlace en tu casilla." });
+    }
+
+    // POST /api/auth/reset-password
+    [HttpPost("reset-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            await _recuperacionService.RestablecerAsync(dto.Token, dto.NuevaContrasena);
+            return NoContent();
         }
         catch (InvalidOperationException ex)
         {

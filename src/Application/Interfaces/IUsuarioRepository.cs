@@ -30,4 +30,7 @@ public interface IUsuarioRepository : IGenericRepository<Usuario>
 
     /// <summary>Busca un usuario por su token de invitación.</summary>
     Task<Usuario?> GetByInvitacionTokenAsync(string token);
+
+    /// <summary>Busca un usuario por su token de recuperación de contraseña.</summary>
+    Task<Usuario?> GetByTokenRecuperacionAsync(string token);
 }

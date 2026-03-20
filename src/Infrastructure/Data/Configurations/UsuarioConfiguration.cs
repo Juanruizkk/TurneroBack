@@ -60,6 +60,18 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             .IsUnique()
             .HasFilter("\"InvitacionToken\" IS NOT NULL");
 
+        builder.Property(u => u.TokenRecuperacion)
+            .HasMaxLength(100)
+            .IsRequired(false);
+
+        builder.Property(u => u.TokenRecuperacionExpiracion)
+            .HasColumnType("timestamptz")
+            .IsRequired(false);
+
+        builder.HasIndex(u => u.TokenRecuperacion)
+            .IsUnique()
+            .HasFilter("\"TokenRecuperacion\" IS NOT NULL");
+
         // ─── Relaciones ──────────────────────────────────────────────────────
 
         // Permisos: la configuración completa vive en UsuarioPermisoConfiguration.

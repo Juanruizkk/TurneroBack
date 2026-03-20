@@ -13,5 +13,6 @@ public class MovimientoCajaResponseDto
     public decimal Monto { get; set; }
     public string? Observaciones { get; set; }
     public DateTime Fecha { get; set; }
+    public ConceptoPagoTurno? ConceptoPago { get; set; }
     public TurnoResumenCajaDto? Turno { get; set; }
 }

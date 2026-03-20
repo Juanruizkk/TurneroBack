@@ -62,4 +62,11 @@ public class UsuarioRepository : GenericRepository<Usuario>, IUsuarioRepository
             .Include(u => u.Sucursal)
             .FirstOrDefaultAsync(u => u.InvitacionToken == token);
     }
+
+    /// <inheritdoc />
+    public async Task<Usuario?> GetByTokenRecuperacionAsync(string token)
+    {
+        return await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.TokenRecuperacion == token);
+    }
 }
