@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using TurneroApp.Application.DTOs.Caja;
 using TurneroApp.Application.DTOs.Turno;
 using TurneroApp.Application.Services;
 
@@ -12,11 +13,13 @@ public class TurnosController : ControllerBase
 {
     private readonly TurnoService        _turnoService;
     private readonly AdjuntoTurnoService _adjuntoService;
+    private readonly CajaService         _cajaService;
 
-    public TurnosController(TurnoService turnoService, AdjuntoTurnoService adjuntoService)
+    public TurnosController(TurnoService turnoService, AdjuntoTurnoService adjuntoService, CajaService cajaService)
     {
         _turnoService   = turnoService;
         _adjuntoService = adjuntoService;
+        _cajaService    = cajaService;
     }
 
     /// <summary>
@@ -162,6 +165,17 @@ public class TurnosController : ControllerBase
         }
     }
 
+    // ─── Pagos ────────────────────────────────────────────────────────────────────
+
+    /// <summary>Retorna el historial de pagos registrados para un turno.</summary>
+    [HttpGet("{turnoId:guid}/pagos")]
+    [ProducesResponseType(typeof(IEnumerable<PagoTurnoResponseDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPagos(Guid turnoId)
+    {
+        var pagos = await _cajaService.GetPagosByTurnoAsync(turnoId);
+        return Ok(pagos);
+    }
+
     // ─── Adjuntos ─────────────────────────────────────────────────────────────────
 
     /// <summary>Lista todos los archivos adjuntos de un turno.</summary>
@@ -187,6 +201,10 @@ public class TurnosController : ControllerBase
 
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "No se proporcionó ningún archivo." });
+
+        const long MaxFileSize = 9 * 1024 * 1024; // 9 MB
+        if (file.Length > MaxFileSize)
+            return BadRequest(new { message = "El archivo no puede superar los 9 MB." });
 
         try
         {

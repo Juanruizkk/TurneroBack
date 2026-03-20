@@ -10,6 +10,7 @@ using TurneroApp.Infrastructure.Data;
 using TurneroApp.Infrastructure.Repositories;
 using TurneroApp.Infrastructure.Services;
 using TurneroApp.Infrastructure.Services.MercadoPago;
+using Resend;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -97,6 +98,10 @@ builder.Services.AddScoped<PublicoService>(sp => new PublicoService(
     sp.GetRequiredService<IHorarioLaboralRepository>(),
     sp.GetRequiredService<IUsuarioServicioRepository>()));
 builder.Services.AddScoped<InvitacionService>();
+builder.Services.AddScoped<RecuperacionContrasenaService>(sp => new RecuperacionContrasenaService(
+    sp.GetRequiredService<IUsuarioRepository>(),
+    sp.GetRequiredService<IEmailService>(),
+    builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173"));
 builder.Services.AddScoped<JwtService>();
 
 // ─── MercadoPago ─────────────────────────────────────────────────────────────
@@ -123,11 +128,19 @@ builder.Services.AddScoped<AuthService>(sp =>
     var saPass  = builder.Configuration["SuperAdmin:Password"] ?? string.Empty;
     return new AuthService(repo, saEmail, saPass);
 });
-var smtpConfigured = !string.IsNullOrWhiteSpace(builder.Configuration["Smtp:Username"]);
-if (smtpConfigured)
-    builder.Services.AddScoped<IEmailService, EmailService>();
+var resendApiToken = builder.Configuration["Resend:ApiToken"];
+if (!string.IsNullOrWhiteSpace(resendApiToken))
+{
+    builder.Services.AddOptions();
+    builder.Services.AddHttpClient<ResendClient>();
+    builder.Services.Configure<ResendClientOptions>(o => o.ApiToken = resendApiToken);
+    builder.Services.AddTransient<IResend, ResendClient>();
+    builder.Services.AddScoped<IEmailService, ResendEmailService>();
+}
 else
+{
     builder.Services.AddScoped<IEmailService, ConsoleEmailService>();
+}
 builder.Services.AddScoped<UsuarioService>(sp =>
 {
     var usuarioRepo  = sp.GetRequiredService<IUsuarioRepository>();

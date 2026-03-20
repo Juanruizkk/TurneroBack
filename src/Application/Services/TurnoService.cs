@@ -110,8 +110,9 @@ public class TurnoService
                 "El profesional ya tiene un turno en el horario seleccionado. Por favor elija otro horario.");
         }
 
+        // La seña solo aplica a turnos web; los creados por admin/profesional no la requieren
         decimal? montoSena = null;
-        if (servicio.RequiereSena && servicio.TipoSena.HasValue && servicio.ValorSena.HasValue)
+        if (dto.Origen == OrigenTurno.Web && servicio.RequiereSena && servicio.TipoSena.HasValue && servicio.ValorSena.HasValue)
         {
             montoSena = servicio.TipoSena == TipoSena.Fija
                 ? servicio.ValorSena.Value

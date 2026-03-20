@@ -21,6 +21,12 @@ public class Usuario
     /// <summary>Fecha límite para aceptar la invitación.</summary>
     public DateTime? FechaExpiracionInvitacion { get; set; }
 
+    /// <summary>Token de un solo uso para recuperación de contraseña.</summary>
+    public string? TokenRecuperacion { get; set; }
+
+    /// <summary>Fecha de expiración del token de recuperación (UTC).</summary>
+    public DateTime? TokenRecuperacionExpiracion { get; set; }
+
     // Navigation properties
     public Sucursal Sucursal { get; set; } = null!;
     public ICollection<UsuarioPermiso> Permisos { get; set; } = new List<UsuarioPermiso>();

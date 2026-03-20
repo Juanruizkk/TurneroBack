@@ -73,8 +73,11 @@ public class CajaService
                     "Un profesional solo puede registrar cobros de sus propios turnos.");
             }
 
-            // Actualizar el monto cobrado del turno (parte de la transacción)
-            turno.TotalCobrado += dto.Monto;
+            // Ajuste descuenta; cualquier otro concepto suma
+            if (dto.ConceptoPago == ConceptoPagoTurno.Ajuste)
+                turno.TotalCobrado -= dto.Monto;
+            else
+                turno.TotalCobrado += dto.Monto;
         }
 
         var movimiento = new MovimientoCaja
@@ -93,12 +96,20 @@ public class CajaService
         // Crear PagoTurno solo cuando hay turno y se especificó el concepto de pago
         if (turno is not null && dto.ConceptoPago.HasValue)
         {
+            // Corregir automáticamente el concepto según si el pago cubre el total o no.
+            // Aplica solo a PagoParcial/PagoTotal; Sena y SaldoFinal se respetan tal cual.
+            var concepto = dto.ConceptoPago.Value;
+            if (concepto is ConceptoPagoTurno.PagoParcial or ConceptoPagoTurno.PagoTotal)
+                concepto = turno.TotalCobrado >= turno.PrecioServicio
+                    ? ConceptoPagoTurno.PagoTotal
+                    : ConceptoPagoTurno.PagoParcial;
+
             pagoTurno = new PagoTurno
             {
                 Id               = Guid.NewGuid(),
                 TurnoId          = turno.Id,
                 MovimientoCajaId = movimiento.Id,
-                Concepto         = dto.ConceptoPago.Value,
+                Concepto         = concepto,
                 Monto            = dto.Monto,
                 Fecha            = movimiento.Fecha,
             };
@@ -108,6 +119,18 @@ public class CajaService
             movimiento, pagoTurno, turno);
 
         return MapMovimientoToResponse(resultado);
+    }
+
+    public async Task<IEnumerable<PagoTurnoResponseDto>> GetPagosByTurnoAsync(Guid turnoId)
+    {
+        var pagos = await _cajaRepository.GetPagosByTurnoAsync(turnoId);
+        return pagos.Select(p => new PagoTurnoResponseDto
+        {
+            Id       = p.Id,
+            Concepto = p.Concepto,
+            Monto    = p.Monto,
+            Fecha    = p.Fecha,
+        });
     }
 
     // ── Resumen de liquidaciones ──────────────────────────────────────────────
@@ -290,6 +313,7 @@ public class CajaService
         Monto          = m.Monto,
         Observaciones  = m.Observaciones,
         Fecha          = m.Fecha,
+        ConceptoPago   = m.PagoTurno?.Concepto,
         Turno          = m.Turno is null ? null : new TurnoResumenCajaDto
         {
             Id                = m.Turno.Id,

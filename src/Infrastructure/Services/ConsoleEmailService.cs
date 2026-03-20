@@ -171,6 +171,26 @@ public class ConsoleEmailService : IEmailService
         return Task.CompletedTask;
     }
 
+    public Task EnviarRecuperacionContrasenaAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string linkRecuperacion)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║      [DEV] EMAIL RECUPERACIÓN DE CONTRASEÑA          ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:   {Email}
+            ║  Nombre: {Nombre}
+            ║  Link:   {Link}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, linkRecuperacion);
+
+        return Task.CompletedTask;
+    }
+
     public Task EnviarRecordatorioAsync(
         string destinatarioEmail,
         string destinatarioNombre,

@@ -51,4 +51,7 @@ public interface ICajaRepository : IGenericRepository<Caja>
 
     /// <summary>Historial de sesiones de una caja, ordenadas por FechaApertura descendente.</summary>
     Task<IEnumerable<CajaSesion>> GetSesionesByCajaAsync(Guid cajaId);
+
+    /// <summary>Todos los PagoTurno de un turno específico, ordenados por fecha ascendente.</summary>
+    Task<IEnumerable<PagoTurno>> GetPagosByTurnoAsync(Guid turnoId);
 }
