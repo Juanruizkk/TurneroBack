@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Servicio;
+using TurneroApp.Application.Exceptions;
 using TurneroApp.Application.Services;
 
 namespace TurneroApp.Api.Controllers;
@@ -9,11 +10,13 @@ namespace TurneroApp.Api.Controllers;
 [Produces("application/json")]
 public class ServiciosController : ControllerBase
 {
-    private readonly ServicioService _servicioService;
+    private readonly ServicioService  _servicioService;
+    private readonly SuscripcionGuard _guard;
 
-    public ServiciosController(ServicioService servicioService)
+    public ServiciosController(ServicioService servicioService, SuscripcionGuard guard)
     {
         _servicioService = servicioService;
+        _guard           = guard;
     }
 
     /// <summary>
@@ -55,6 +58,9 @@ public class ServiciosController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateServicioDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        try { await _guard.VerificarActivaAsync(dto.SucursalId); }
+        catch (SuscripcionVencidaException ex) { return StatusCode(402, new { message = ex.Message }); }
 
         var servicio = await _servicioService.CreateAsync(dto);
         return CreatedAtAction(nameof(GetById), new { id = servicio.Id }, servicio);

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Usuario;
+using TurneroApp.Application.Exceptions;
 using TurneroApp.Application.Services;
-using TurneroApp.Domain.Entities;
 
 namespace TurneroApp.Api.Controllers;
 
@@ -10,11 +10,13 @@ namespace TurneroApp.Api.Controllers;
 [Produces("application/json")]
 public class UsuariosController : ControllerBase
 {
-    private readonly UsuarioService _usuarioService;
+    private readonly UsuarioService  _usuarioService;
+    private readonly SuscripcionGuard _guard;
 
-    public UsuariosController(UsuarioService usuarioService)
+    public UsuariosController(UsuarioService usuarioService, SuscripcionGuard guard)
     {
         _usuarioService = usuarioService;
+        _guard          = guard;
     }
 
     // GET /api/usuarios?sucursalId={id}
@@ -57,6 +59,9 @@ public class UsuariosController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        try { await _guard.VerificarActivaAsync(dto.SucursalId); }
+        catch (SuscripcionVencidaException ex) { return StatusCode(402, new { message = ex.Message }); }
+
         try
         {
             var usuario = await _usuarioService.CreateAsync(dto);
@@ -64,7 +69,7 @@ public class UsuariosController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Email duplicado → 409 Conflict
+            // Email duplicado o límite de plan → 409/400
             return Conflict(new { message = ex.Message });
         }
     }
@@ -97,15 +102,15 @@ public class UsuariosController : ControllerBase
 
     // POST /api/usuarios/{id}/reenviar-invitacion
     [HttpPost("{id:guid}/reenviar-invitacion")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ReenviarInvitacion(Guid id)
     {
         try
         {
-            await _usuarioService.ReenviarInvitacionAsync(id);
-            return NoContent();
+            var link = await _usuarioService.ReenviarInvitacionAsync(id);
+            return Ok(new { link });
         }
         catch (InvalidOperationException ex)
         {
@@ -188,6 +193,7 @@ public class UsuariosController : ControllerBase
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try
@@ -197,7 +203,32 @@ public class UsuariosController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return NotFound(new { message = ex.Message });
+            if (ex.Message.Contains("No se encontró"))
+                return NotFound(new { message = ex.Message });
+
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    // DELETE /api/usuarios/{id}/hard
+    // Hard delete: elimina físicamente la membresía y todos sus datos de configuración.
+    [HttpDelete("{id:guid}/hard")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> HardDelete(Guid id)
+    {
+        try
+        {
+            await _usuarioService.HardDeleteAsync(id);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message.Contains("no encontrado"))
+                return NotFound(new { message = ex.Message });
+
+            return Conflict(new { message = ex.Message });
         }
     }
 }

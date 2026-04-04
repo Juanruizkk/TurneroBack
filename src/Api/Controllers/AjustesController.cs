@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Ajustes;
+using TurneroApp.Application.DTOs.Sucursal;
 using TurneroApp.Application.Services;
 
 namespace TurneroApp.Api.Controllers;
@@ -10,11 +11,13 @@ namespace TurneroApp.Api.Controllers;
 [Authorize]
 public class AjustesController : ControllerBase
 {
-    private readonly AjustesService _service;
+    private readonly AjustesService   _service;
+    private readonly SucursalService  _sucursalService;
 
-    public AjustesController(AjustesService service)
+    public AjustesController(AjustesService service, SucursalService sucursalService)
     {
-        _service = service;
+        _service         = service;
+        _sucursalService = sucursalService;
     }
 
     /// <summary>Obtiene los ajustes completos de una sucursal.</summary>
@@ -47,6 +50,115 @@ public class AjustesController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+    }
+
+    // ─── Imagen endpoints ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Sube la imagen de logo o background de la sucursal a Cloudinary.
+    /// </summary>
+    /// <param name="tipo">"logo" | "background"</param>
+    [HttpPost("imagen")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> SubirImagen(
+        [FromQuery] Guid sucursalId,
+        [FromQuery] string tipo,
+        IFormFile? file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "No se recibió ningún archivo." });
+
+        if (!tipo.Equals("logo", StringComparison.OrdinalIgnoreCase) &&
+            !tipo.Equals("background", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "El parámetro 'tipo' debe ser 'logo' o 'background'." });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var result = await _sucursalService.SubirImagenAsync(
+                sucursalId, stream, file.FileName, file.ContentType, tipo);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Elimina la imagen de logo o background de la sucursal (Cloudinary + DB).
+    /// </summary>
+    /// <param name="tipo">"logo" | "background"</param>
+    [HttpDelete("imagen")]
+    public async Task<IActionResult> EliminarImagen(
+        [FromQuery] Guid sucursalId,
+        [FromQuery] string tipo)
+    {
+        if (!tipo.Equals("logo", StringComparison.OrdinalIgnoreCase) &&
+            !tipo.Equals("background", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "El parámetro 'tipo' debe ser 'logo' o 'background'." });
+
+        try
+        {
+            await _sucursalService.EliminarImagenAsync(sucursalId, tipo);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ─── Slug endpoints ───────────────────────────────────────────────────────
+
+    /// <summary>Devuelve el slug actual de una sucursal.</summary>
+    [HttpGet("slug")]
+    public async Task<IActionResult> ObtenerSlug([FromQuery] Guid sucursalId)
+    {
+        try
+        {
+            var slug = await _sucursalService.ObtenerSlugAsync(sucursalId);
+            return Ok(new { slug });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Verifica si un slug está disponible para ser usado por la sucursal indicada.
+    /// </summary>
+    [HttpGet("slug-disponible")]
+    public async Task<IActionResult> SlugDisponible(
+        [FromQuery] Guid sucursalId,
+        [FromQuery] string slug)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+            return BadRequest(new { message = "El slug no puede estar vacío." });
+
+        var disponible = await _sucursalService.SlugDisponibleAsync(slug, sucursalId);
+        return Ok(new { disponible });
+    }
+
+    /// <summary>Actualiza el slug de una sucursal.</summary>
+    [HttpPatch("slug")]
+    public async Task<IActionResult> ActualizarSlug(
+        [FromQuery] Guid sucursalId,
+        [FromBody] ActualizarSlugDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var result = await _sucursalService.ActualizarSlugAsync(sucursalId, dto.Slug);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 }

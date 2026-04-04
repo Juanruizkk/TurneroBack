@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Auth;
 using TurneroApp.Application.Services;
 using TurneroApp.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace TurneroApp.Api.Controllers;
 
@@ -14,21 +15,45 @@ public class AuthController : ControllerBase
     private readonly JwtService                     _jwtService;
     private readonly InvitacionService              _invitacionService;
     private readonly RecuperacionContrasenaService  _recuperacionService;
+    private readonly RegisterService                _registerService;
 
     public AuthController(
         AuthService authService,
         JwtService jwtService,
         InvitacionService invitacionService,
-        RecuperacionContrasenaService recuperacionService)
+        RecuperacionContrasenaService recuperacionService,
+        RegisterService registerService)
     {
         _authService         = authService;
         _jwtService          = jwtService;
         _invitacionService   = invitacionService;
         _recuperacionService = recuperacionService;
+        _registerService     = registerService;
+    }
+
+    // POST /api/auth/register
+    [HttpPost("register")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var usuario   = await _registerService.RegistrarAsync(dto);
+            var respuesta = _jwtService.GenerarRespuesta(usuario);
+            return StatusCode(StatusCodes.Status201Created, respuesta);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // POST /api/auth/login
     [HttpPost("login")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -37,7 +62,43 @@ public class AuthController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
         try
         {
-            var usuario   = await _authService.ValidarAsync(dto);
+            var validacion = await _authService.ValidarAsync(dto);
+
+            if (validacion.RequiereSeleccion)
+            {
+                return Ok(new LoginResponseDto
+                {
+                    RequiereSeleccion = true,
+                    SeleccionToken    = validacion.SeleccionToken,
+                    Opciones          = validacion.Opciones,
+                });
+            }
+
+            var respuesta = _jwtService.GenerarRespuesta(validacion.Usuario!);
+            return Ok(respuesta);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    // POST /api/auth/seleccionar-sucursal
+    /// <summary>
+    /// Segundo paso del login multi-sucursal.
+    /// Solo se llama cuando el login devuelve RequiereSeleccion = true.
+    /// </summary>
+    [HttpPost("seleccionar-sucursal")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> SeleccionarSucursal([FromBody] SeleccionarSucursalDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var usuario   = await _authService.SeleccionarSucursalAsync(dto);
             var respuesta = _jwtService.GenerarRespuesta(usuario);
             return Ok(respuesta);
         }

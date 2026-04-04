@@ -16,12 +16,12 @@ public class PublicoController : ControllerBase
     }
 
     /// <summary>Perfil público de la sucursal (nombre, slogan, foto, rubros, horarios).</summary>
-    [HttpGet("perfil")]
-    public async Task<IActionResult> Perfil([FromQuery] Guid sucursalId)
+    [HttpGet("{slug}/perfil")]
+    public async Task<IActionResult> Perfil(string slug)
     {
         try
         {
-            var perfil = await _service.ObtenerPerfilAsync(sucursalId);
+            var perfil = await _service.ObtenerPerfilAsync(slug);
             return Ok(perfil);
         }
         catch (InvalidOperationException ex)
@@ -34,9 +34,9 @@ public class PublicoController : ControllerBase
     /// Slots horarios disponibles para una fecha y servicio dados.
     /// Devuelve lista de { hora, profesionalId } para usar al crear el turno.
     /// </summary>
-    [HttpGet("slots")]
+    [HttpGet("{slug}/slots")]
     public async Task<IActionResult> Slots(
-        [FromQuery] Guid sucursalId,
+        string slug,
         [FromQuery] string fecha,       // "yyyy-MM-dd"
         [FromQuery] Guid servicioId)
     {
@@ -45,7 +45,7 @@ public class PublicoController : ControllerBase
 
         try
         {
-            var slots = await _service.ObtenerSlotsAsync(sucursalId, dateOnly, servicioId);
+            var slots = await _service.ObtenerSlotsAsync(slug, dateOnly, servicioId);
             return Ok(slots);
         }
         catch (Exception ex)
