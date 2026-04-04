@@ -7,6 +7,7 @@ using TurneroApp.Api.Services;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Application.Services;
 using TurneroApp.Infrastructure.Data;
+using TurneroApp.Infrastructure.MultiTenant;
 using TurneroApp.Infrastructure.Repositories;
 using TurneroApp.Infrastructure.Services;
 using TurneroApp.Infrastructure.Services.MercadoPago;
@@ -50,6 +51,10 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// ─── Multi-tenant context ─────────────────────────────────────────────────────
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantContext, TurneroApp.Api.Services.HttpTenantContext>();
+
 // ─── EF Core / PostgreSQL ────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -64,8 +69,11 @@ builder.Services.AddScoped<IComentarioTurnoRepository, ComentarioTurnoRepository
 builder.Services.AddScoped<IAdjuntoTurnoRepository, AdjuntoTurnoRepository>();
 builder.Services.AddScoped<ICajaRepository, CajaRepository>();
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+builder.Services.AddScoped<IUsuarioSucursalRolRepository, UsuarioSucursalRolRepository>();
 builder.Services.AddScoped<IHorarioLaboralRepository, HorarioLaboralRepository>();
 builder.Services.AddScoped<IUsuarioServicioRepository, UsuarioServicioRepository>();
+builder.Services.AddScoped<ISuscripcionRepository, SuscripcionRepository>();
+builder.Services.AddScoped<IReportRepository, ReportRepository>();
 
 // ─── Application Services ────────────────────────────────────────────────────
 builder.Services.AddScoped<SucursalService>();
@@ -83,21 +91,35 @@ builder.Services.AddScoped<TurnoService>(sp =>
     var frontendUrl    = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
     var horarioRepo         = sp.GetRequiredService<IHorarioLaboralRepository>();
     var usuarioServicioRepo = sp.GetRequiredService<IUsuarioServicioRepository>();
-    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl, notificaciones, horarioRepo, usuarioServicioRepo);
+    var suscripcionRepo     = sp.GetRequiredService<ISuscripcionRepository>();
+    var guard               = sp.GetRequiredService<SuscripcionGuard>();
+    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl, notificaciones, horarioRepo, usuarioServicioRepo, suscripcionRepo, guard);
 });
 builder.Services.AddScoped<CajaService>();
-builder.Services.AddScoped<SuperAdminService>();
+builder.Services.AddScoped<SuperAdminService>(sp => new SuperAdminService(
+    sp.GetRequiredService<ISucursalRepository>(),
+    sp.GetRequiredService<IUsuarioRepository>(),
+    sp.GetRequiredService<IUsuarioSucursalRolRepository>(),
+    sp.GetRequiredService<ICajaRepository>(),
+    sp.GetRequiredService<ISuscripcionRepository>()));
 builder.Services.AddScoped<AjustesService>();
+builder.Services.AddScoped<OnboardingService>();
+builder.Services.AddScoped<SuscripcionGuard>();
+builder.Services.AddScoped<SuscripcionService>(sp => new SuscripcionService(
+    sp.GetRequiredService<ISuscripcionRepository>(),
+    sp.GetRequiredService<ISucursalRepository>()));
 builder.Services.AddScoped<IAdjuntoService, CloudinaryService>();
 builder.Services.AddScoped<AdjuntoTurnoService>();
 builder.Services.AddScoped<PublicoService>(sp => new PublicoService(
     sp.GetRequiredService<ISucursalRepository>(),
     sp.GetRequiredService<IServicioRepository>(),
     sp.GetRequiredService<ITurnoRepository>(),
-    sp.GetRequiredService<IUsuarioRepository>(),
+    sp.GetRequiredService<IUsuarioSucursalRolRepository>(),
     sp.GetRequiredService<IHorarioLaboralRepository>(),
     sp.GetRequiredService<IUsuarioServicioRepository>()));
-builder.Services.AddScoped<InvitacionService>();
+builder.Services.AddScoped<InvitacionService>(sp => new InvitacionService(
+    sp.GetRequiredService<IUsuarioSucursalRolRepository>(),
+    sp.GetRequiredService<IUsuarioRepository>()));
 builder.Services.AddScoped<RecuperacionContrasenaService>(sp => new RecuperacionContrasenaService(
     sp.GetRequiredService<IUsuarioRepository>(),
     sp.GetRequiredService<IEmailService>(),
@@ -121,12 +143,21 @@ builder.Services.AddScoped<IPagoTurnoService>(sp => new PagoTurnoService(
 builder.Services.AddHostedService<TurnoAutoNoShowService>();
 builder.Services.AddHostedService<RecordatoriosEmailBackgroundService>();
 builder.Services.AddHostedService<TurnoPagoExpirationService>();
+builder.Services.AddScoped<RegisterService>(sp => new RegisterService(
+    sp.GetRequiredService<IUsuarioRepository>(),
+    sp.GetRequiredService<IUsuarioSucursalRolRepository>(),
+    sp.GetRequiredService<ISucursalRepository>(),
+    sp.GetRequiredService<ICajaRepository>(),
+    sp.GetRequiredService<ISuscripcionRepository>(),
+    sp.GetRequiredService<IEmailService>(),
+    builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173"));
 builder.Services.AddScoped<AuthService>(sp =>
 {
     var repo    = sp.GetRequiredService<IUsuarioRepository>();
+    var usrRepo = sp.GetRequiredService<IUsuarioSucursalRolRepository>();
     var saEmail = builder.Configuration["SuperAdmin:Email"] ?? string.Empty;
     var saPass  = builder.Configuration["SuperAdmin:Password"] ?? string.Empty;
-    return new AuthService(repo, saEmail, saPass);
+    return new AuthService(repo, usrRepo, saEmail, saPass);
 });
 var resendApiToken = builder.Configuration["Resend:ApiToken"];
 if (!string.IsNullOrWhiteSpace(resendApiToken))
@@ -144,12 +175,19 @@ else
 builder.Services.AddScoped<UsuarioService>(sp =>
 {
     var usuarioRepo  = sp.GetRequiredService<IUsuarioRepository>();
+    var usrRepo      = sp.GetRequiredService<IUsuarioSucursalRolRepository>();
     var sucursalRepo = sp.GetRequiredService<ISucursalRepository>();
     var emailService = sp.GetRequiredService<IEmailService>();
     var frontendUrl  = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
-    return new UsuarioService(usuarioRepo, sucursalRepo, emailService, frontendUrl,
+    var logger       = sp.GetRequiredService<ILogger<UsuarioService>>();
+    var guard = sp.GetRequiredService<SuscripcionGuard>();
+    return new UsuarioService(usuarioRepo, usrRepo, sucursalRepo, emailService, frontendUrl,
         sp.GetRequiredService<IHorarioLaboralRepository>(),
-        sp.GetRequiredService<IUsuarioServicioRepository>());
+        sp.GetRequiredService<IUsuarioServicioRepository>(),
+        sp.GetRequiredService<ITurnoRepository>(),
+        sp.GetRequiredService<ISuscripcionRepository>(),
+        guard,
+        logger);
 });
 
 // ─── SignalR ─────────────────────────────────────────────────────────────────
@@ -224,6 +262,26 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// ─── Startup config warnings ──────────────────────────────────────────────────
+{
+    var startupLogger = app.Logger;
+    var fromEmail = app.Configuration["Resend:FromEmail"] ?? "";
+    if (fromEmail == "delivered@resend.dev")
+        startupLogger.LogWarning(
+            "Resend:FromEmail está configurado como '{FromEmail}' (sandbox de Resend). " +
+            "Los emails solo llegarán al dueño de la cuenta Resend. " +
+            "Configurá un email de un dominio verificado para producción.",
+            fromEmail);
+
+    var frontendUrlCfg = app.Configuration["App:FrontendUrl"] ?? "";
+    if (frontendUrlCfg.Contains("localhost"))
+        startupLogger.LogWarning(
+            "App:FrontendUrl está configurado como '{FrontendUrl}' (localhost). " +
+            "Los links de invitación apuntarán a localhost. " +
+            "Actualizá este valor para producción.",
+            frontendUrlCfg);
+}
 
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())

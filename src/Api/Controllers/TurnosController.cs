@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Caja;
 using TurneroApp.Application.DTOs.Turno;
+using TurneroApp.Application.Exceptions;
 using TurneroApp.Application.Services;
 
 namespace TurneroApp.Api.Controllers;
@@ -14,12 +15,14 @@ public class TurnosController : ControllerBase
     private readonly TurnoService        _turnoService;
     private readonly AdjuntoTurnoService _adjuntoService;
     private readonly CajaService         _cajaService;
+    private readonly SuscripcionGuard    _guard;
 
-    public TurnosController(TurnoService turnoService, AdjuntoTurnoService adjuntoService, CajaService cajaService)
+    public TurnosController(TurnoService turnoService, AdjuntoTurnoService adjuntoService, CajaService cajaService, SuscripcionGuard guard)
     {
         _turnoService   = turnoService;
         _adjuntoService = adjuntoService;
         _cajaService    = cajaService;
+        _guard          = guard;
     }
 
     /// <summary>
@@ -78,8 +81,13 @@ public class TurnosController : ControllerBase
 
         try
         {
+            await _guard.VerificarActivaAsync(dto.SucursalId);
             var turno = await _turnoService.CreateAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = turno.Id }, turno);
+        }
+        catch (SuscripcionVencidaException ex)
+        {
+            return StatusCode(402, new { message = ex.Message });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("conflicto") || ex.Message.Contains("horario"))
         {
