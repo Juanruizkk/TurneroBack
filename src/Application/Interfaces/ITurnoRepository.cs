@@ -33,4 +33,13 @@ public interface ITurnoRepository : IGenericRepository<Turno>
     /// es anterior a <paramref name="limite"/> (turnos abandonados).
     /// </summary>
     Task<IEnumerable<Turno>> GetPendientePagoVencidosAsync(DateTime limite);
+
+    /// <summary>
+    /// Retorna true si el profesional tiene turnos futuros en estado activo
+    /// (Pendiente, Confirmado o PendientePago).
+    /// </summary>
+    Task<bool> TieneTurnosFuturosActivosAsync(Guid profesionalId);
+
+    /// <summary>Cuenta turnos no cancelados de una sucursal en un mes/año dado.</summary>
+    Task<int> ContarPorSucursalEnMesAsync(Guid sucursalId, int anio, int mes);
 }

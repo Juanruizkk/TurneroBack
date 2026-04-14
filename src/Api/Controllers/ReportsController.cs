@@ -32,10 +32,14 @@ public class ReportsController : ControllerBase
     // GET /api/reportes/resumen?desde=2026-03-01&hasta=2026-03-31
     [HttpGet("resumen")]
     [ProducesResponseType(typeof(ReporteResumenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status402PaymentRequired)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Resumen([FromQuery] DateTime desde, [FromQuery] DateTime hasta)
     {
         var sucursalId = GetSucursalId();
+
+        try { await _guard.VerificarActivaAsync(sucursalId); }
+        catch (SuscripcionVencidaException ex) { return StatusCode(402, new { message = ex.Message }); }
 
         try { await _guard.VerificarTieneReportesAsync(sucursalId); }
         catch (FeatureNoPlanException ex) { return StatusCode(403, new { message = ex.Message }); }
@@ -62,10 +66,14 @@ public class ReportsController : ControllerBase
     // GET /api/reportes/turnos?desde=&hasta=
     [HttpGet("turnos")]
     [ProducesResponseType(typeof(ReporteTurnosDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status402PaymentRequired)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Turnos([FromQuery] DateTime desde, [FromQuery] DateTime hasta)
     {
         var sucursalId = GetSucursalId();
+
+        try { await _guard.VerificarActivaAsync(sucursalId); }
+        catch (SuscripcionVencidaException ex) { return StatusCode(402, new { message = ex.Message }); }
 
         try { await _guard.VerificarTieneReportesAsync(sucursalId); }
         catch (FeatureNoPlanException ex) { return StatusCode(403, new { message = ex.Message }); }
@@ -78,10 +86,14 @@ public class ReportsController : ControllerBase
     // GET /api/reportes/ingresos?desde=&hasta=
     [HttpGet("ingresos")]
     [ProducesResponseType(typeof(ReporteIngresosDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status402PaymentRequired)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Ingresos([FromQuery] DateTime desde, [FromQuery] DateTime hasta)
     {
         var sucursalId = GetSucursalId();
+
+        try { await _guard.VerificarActivaAsync(sucursalId); }
+        catch (SuscripcionVencidaException ex) { return StatusCode(402, new { message = ex.Message }); }
 
         try { await _guard.VerificarTieneReportesAsync(sucursalId); }
         catch (FeatureNoPlanException ex) { return StatusCode(403, new { message = ex.Message }); }

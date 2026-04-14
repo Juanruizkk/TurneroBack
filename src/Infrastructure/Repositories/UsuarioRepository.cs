@@ -12,55 +12,17 @@ public class UsuarioRepository : GenericRepository<Usuario>, IUsuarioRepository
     }
 
     /// <inheritdoc />
-    public async Task<Usuario?> GetByIdConPermisosAsync(Guid id)
+    public async Task<Usuario?> GetByEmailAsync(string email)
     {
         return await _context.Usuarios
-            .Include(u => u.Permisos)
-            .Include(u => u.HorariosLaborales)
-            .Include(u => u.Servicios)
-            .FirstOrDefaultAsync(u => u.Id == id);
+            .FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<Usuario>> GetBySucursalAsync(Guid sucursalId)
+    public async Task<Usuario?> GetByEmailGlobalAsync(string email)
     {
         return await _context.Usuarios
-            .Include(u => u.Permisos)
-            .Include(u => u.HorariosLaborales)
-            .Include(u => u.Servicios)
-            .Where(u => u.SucursalId == sucursalId)
-            .OrderBy(u => u.Apellido)
-            .ThenBy(u => u.Nombre)
-            .ToListAsync();
-    }
-
-    /// <inheritdoc />
-    public async Task<Usuario?> GetByEmailAsync(Guid sucursalId, string email)
-    {
-        return await _context.Usuarios
-            .FirstOrDefaultAsync(u =>
-                u.SucursalId == sucursalId &&
-                u.Email == email.ToLowerInvariant());
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<Usuario>> GetByEmailGlobalAsync(string email)
-    {
-        return await _context.Usuarios
-            .Include(u => u.Permisos)
-            .Where(u => u.Email == email.ToLowerInvariant())
-            .OrderByDescending(u => u.Estado == Domain.Enums.EstadoUsuario.Activo)
-            .ThenByDescending(u => u.EsOwner)
-            .ToListAsync();
-    }
-
-    /// <inheritdoc />
-    public async Task<Usuario?> GetByInvitacionTokenAsync(string token)
-    {
-        return await _context.Usuarios
-            .Include(u => u.Permisos)
-            .Include(u => u.Sucursal)
-            .FirstOrDefaultAsync(u => u.InvitacionToken == token);
+            .FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
     }
 
     /// <inheritdoc />
@@ -68,5 +30,12 @@ public class UsuarioRepository : GenericRepository<Usuario>, IUsuarioRepository
     {
         return await _context.Usuarios
             .FirstOrDefaultAsync(u => u.TokenRecuperacion == token);
+    }
+
+    /// <inheritdoc />
+    public async Task<Usuario?> GetBySeleccionTokenAsync(string token)
+    {
+        return await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.SeleccionToken == token);
     }
 }

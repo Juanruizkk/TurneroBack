@@ -31,6 +31,7 @@ public class PagoTurnoServiceSignalRTests
     private readonly Mock<ICajaRepository>           _cajaRepo       = new();
     private readonly Mock<ISucursalRepository>       _sucursalRepo   = new();
     private readonly Mock<IMercadoPagoGateway>       _mpGateway      = new();
+    private readonly Mock<IMercadoPagoOAuthService>  _oauthService   = new();
     private readonly Mock<IEmailService>             _emailService   = new();
     private readonly Mock<ILogger<PagoTurnoService>> _logger         = new();
     private readonly Mock<ITurnoNotificacionService> _notificaciones = new();
@@ -43,14 +44,18 @@ public class PagoTurnoServiceSignalRTests
             _cajaRepo.Object,
             _sucursalRepo.Object,
             _mpGateway.Object,
+            _oauthService.Object,
             _emailService.Object,
             _logger.Object,
             "http://localhost:5173",
+            "http://localhost:5000",
             _notificaciones.Object);
 
         // Defaults seguros para no configurar en cada test
         _turnoRepo.Setup(r => r.Update(It.IsAny<Turno>()));
         _turnoRepo.Setup(r => r.SaveChangesAsync()).ReturnsAsync(1);
+        _oauthService.Setup(o => o.ObtenerAccessTokenVigenteAsync(It.IsAny<Guid>()))
+            .ReturnsAsync("test-access-token");
         _emailService.Setup(e => e.EnviarConfirmacionTurnoAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<string>(),
@@ -96,11 +101,11 @@ public class PagoTurnoServiceSignalRTests
     public async Task Procesar_PagoAprobado_DisparaNotificacionNuevoTurno()
     {
         var turno = CrearTurnoPendientePago();
-        _mpGateway.Setup(g => g.ObtenerDetallesPagoAsync(It.IsAny<long>()))
+        _mpGateway.Setup(g => g.ObtenerDetallesPagoAsync(It.IsAny<long>(), It.IsAny<string>()))
             .ReturnsAsync(CrearPago("approved", turno.Id));
         _turnoRepo.Setup(r => r.GetByIdConRelacionesAsync(turno.Id)).ReturnsAsync(turno);
 
-        await _sut.ProcesarNotificacionPagoAsync(1L);
+        await _sut.ProcesarNotificacionPagoAsync(1L, turno.SucursalId);
 
         _notificaciones.Verify(
             n => n.NotificarNuevoTurnoAsync(It.IsAny<TurnoResponseDto>()),
@@ -113,7 +118,8 @@ public class PagoTurnoServiceSignalRTests
     public async Task Procesar_PagoAprobado_NotificacionPayload_EstadoEsConfirmado()
     {
         var turno = CrearTurnoPendientePago();
-        _mpGateway.Setup(g => g.ObtenerDetallesPagoAsync(It.IsAny<long>()))
+        turno.MontoSena = 2000m; // alinear con el amount del pago
+        _mpGateway.Setup(g => g.ObtenerDetallesPagoAsync(It.IsAny<long>(), It.IsAny<string>()))
             .ReturnsAsync(CrearPago("approved", turno.Id, amount: 2000m));
         _turnoRepo.Setup(r => r.GetByIdConRelacionesAsync(turno.Id)).ReturnsAsync(turno);
 
@@ -123,7 +129,7 @@ public class PagoTurnoServiceSignalRTests
             .Callback<TurnoResponseDto>(dto => capturado = dto)
             .Returns(Task.CompletedTask);
 
-        await _sut.ProcesarNotificacionPagoAsync(1L);
+        await _sut.ProcesarNotificacionPagoAsync(1L, turno.SucursalId);
 
         capturado.Should().NotBeNull();
         capturado!.Estado.Should().Be(EstadoTurno.Confirmado,
@@ -146,11 +152,11 @@ public class PagoTurnoServiceSignalRTests
     public async Task Procesar_PagoRechazadoOCancelado_NoDisparaNotificacion(string status)
     {
         var turno = CrearTurnoPendientePago();
-        _mpGateway.Setup(g => g.ObtenerDetallesPagoAsync(It.IsAny<long>()))
+        _mpGateway.Setup(g => g.ObtenerDetallesPagoAsync(It.IsAny<long>(), It.IsAny<string>()))
             .ReturnsAsync(CrearPago(status, turno.Id));
         _turnoRepo.Setup(r => r.GetByIdConRelacionesAsync(turno.Id)).ReturnsAsync(turno);
 
-        await _sut.ProcesarNotificacionPagoAsync(1L);
+        await _sut.ProcesarNotificacionPagoAsync(1L, turno.SucursalId);
 
         _notificaciones.Verify(
             n => n.NotificarNuevoTurnoAsync(It.IsAny<TurnoResponseDto>()),
@@ -167,14 +173,14 @@ public class PagoTurnoServiceSignalRTests
     public async Task Procesar_PagoAprobado_SignalRFalla_NoPropagarExcepcion()
     {
         var turno = CrearTurnoPendientePago();
-        _mpGateway.Setup(g => g.ObtenerDetallesPagoAsync(It.IsAny<long>()))
+        _mpGateway.Setup(g => g.ObtenerDetallesPagoAsync(It.IsAny<long>(), It.IsAny<string>()))
             .ReturnsAsync(CrearPago("approved", turno.Id));
         _turnoRepo.Setup(r => r.GetByIdConRelacionesAsync(turno.Id)).ReturnsAsync(turno);
         _notificaciones
             .Setup(n => n.NotificarNuevoTurnoAsync(It.IsAny<TurnoResponseDto>()))
             .ThrowsAsync(new Exception("Hub desconectado"));
 
-        var act = () => _sut.ProcesarNotificacionPagoAsync(1L);
+        var act = () => _sut.ProcesarNotificacionPagoAsync(1L, turno.SucursalId);
 
         await act.Should().NotThrowAsync(
             "un fallo de SignalR no debe revertir la confirmación del turno ni " +

@@ -13,7 +13,7 @@ public class ResendEmailService : IEmailService
     {
         _resend = resend;
         var fromEmail = config["Resend:FromEmail"] ?? "noreply@turneroapp.com";
-        var fromName  = config["Resend:FromName"]  ?? "TurneroApp";
+        var fromName  = config["Resend:FromName"]  ?? "MetaTurnos";
         _fromAddress  = $"{fromName} <{fromEmail}>";
     }
 
@@ -36,6 +36,37 @@ public class ResendEmailService : IEmailService
     {
         var asunto = $"Nuevo enlace de invitación — {nombreSucursal}";
         var cuerpo = PlantillaInvitacion(destinatarioNombre, nombreSucursal, linkInvitacion, esReenvio: true);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
+    }
+
+    public Task EnviarInvitacionUsuarioExistenteAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string linkInvitacion)
+    {
+        var asunto = $"Te invitaron a unirte a {nombreSucursal}";
+        var cuerpo = PlantillaInvitacionExistente(destinatarioNombre, nombreSucursal, linkInvitacion);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
+    }
+
+    public Task EnviarBienvenidaAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreNegocio,
+        string urlPanel)
+    {
+        var asunto = $"¡Bienvenido a MetaTurnos, {destinatarioNombre}!";
+        var cuerpo = $"""
+            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+              <h2 style="color:#2F7D6B;margin-bottom:8px">¡Hola {destinatarioNombre}!</h2>
+              <p style="color:#374151">Tu cuenta de <strong>{nombreNegocio}</strong> en MetaTurnos está lista. Ya podés comenzar a gestionar tus turnos.</p>
+              <a href="{urlPanel}/admin" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2F7D6B;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">
+                Ir al panel
+              </a>
+              <p style="margin-top:24px;color:#9ca3af;font-size:13px">Si no creaste esta cuenta, podés ignorar este email.</p>
+            </div>
+            """;
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
@@ -96,7 +127,7 @@ public class ResendEmailService : IEmailService
         string destinatarioNombre,
         string linkRecuperacion)
     {
-        var asunto = "Recuperación de contraseña — TurneroApp";
+        var asunto = "Recuperación de contraseña — MetaTurnos";
         var cuerpo = PlantillaRecuperacionContrasena(destinatarioNombre, linkRecuperacion);
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
@@ -152,7 +183,7 @@ public class ResendEmailService : IEmailService
                           <tr>
                             <td style="border-radius:8px;border:1.5px solid #f1b5c0;">
                               <a href="{cancelUrl}"
-                                 style="display:inline-block;padding:11px 28px;color:#B4697B;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
+                                 style="display:inline-block;padding:11px 28px;color:#2F7D6B;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
                                 Cancelar mi turno
                               </a>
                             </td>
@@ -169,17 +200,20 @@ public class ResendEmailService : IEmailService
             <html lang="es">
             <head>
               <meta charset="UTF-8">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
               <meta name="viewport" content="width=device-width,initial-scale=1">
               <title>Turno confirmado</title>
             </head>
-            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
                     <tr>
-                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
-                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
-                          ✦ {sucursal}
+                      <td style="background:#2F7D6B;padding:24px 40px 20px;text-align:center;">
+                        <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="56" height="56" style="display:block;margin:0 auto 8px;object-fit:contain;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                          {sucursal}
                         </p>
                       </td>
                     </tr>
@@ -228,7 +262,7 @@ public class ResendEmailService : IEmailService
                     <tr>
                       <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
                         <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
-                          Este mensaje fue generado automáticamente por TurneroApp.
+                          Este mensaje fue generado automáticamente por MetaTurnos.
                         </p>
                       </td>
                     </tr>
@@ -254,16 +288,21 @@ public class ResendEmailService : IEmailService
             <html lang="es">
             <head>
               <meta charset="UTF-8">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
               <meta name="viewport" content="width=device-width,initial-scale=1">
               <title>Turno cancelado</title>
             </head>
-            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
                     <tr>
-                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
-                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">✦ {sucursal}</p>
+                      <td style="background:#2F7D6B;padding:24px 40px 20px;text-align:center;">
+                        <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="56" height="56" style="display:block;margin:0 auto 8px;object-fit:contain;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                          {sucursal}
+                        </p>
                       </td>
                     </tr>
                     <tr>
@@ -306,7 +345,7 @@ public class ResendEmailService : IEmailService
                     </tr>
                     <tr>
                       <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
-                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por TurneroApp.</p>
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por MetaTurnos.</p>
                       </td>
                     </tr>
                   </table>
@@ -331,16 +370,21 @@ public class ResendEmailService : IEmailService
             <html lang="es">
             <head>
               <meta charset="UTF-8">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
               <meta name="viewport" content="width=device-width,initial-scale=1">
               <title>Cancelación confirmada</title>
             </head>
-            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
                     <tr>
-                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
-                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">✦ {sucursal}</p>
+                      <td style="background:#2F7D6B;padding:24px 40px 20px;text-align:center;">
+                        <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="56" height="56" style="display:block;margin:0 auto 8px;object-fit:contain;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                          {sucursal}
+                        </p>
                       </td>
                     </tr>
                     <tr>
@@ -383,7 +427,7 @@ public class ResendEmailService : IEmailService
                     </tr>
                     <tr>
                       <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
-                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por TurneroApp.</p>
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por MetaTurnos.</p>
                       </td>
                     </tr>
                   </table>
@@ -409,16 +453,21 @@ public class ResendEmailService : IEmailService
             <html lang="es">
             <head>
               <meta charset="UTF-8">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
               <meta name="viewport" content="width=device-width,initial-scale=1">
               <title>Slot liberado en agenda</title>
             </head>
-            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
                     <tr>
-                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
-                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">✦ {sucursal}</p>
+                      <td style="background:#2F7D6B;padding:24px 40px 20px;text-align:center;">
+                        <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="56" height="56" style="display:block;margin:0 auto 8px;object-fit:contain;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                          {sucursal}
+                        </p>
                       </td>
                     </tr>
                     <tr>
@@ -461,7 +510,7 @@ public class ResendEmailService : IEmailService
                     </tr>
                     <tr>
                       <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
-                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por TurneroApp.</p>
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por MetaTurnos.</p>
                       </td>
                     </tr>
                   </table>
@@ -496,7 +545,7 @@ public class ResendEmailService : IEmailService
                           <tr>
                             <td style="border-radius:8px;border:1.5px solid #f1b5c0;">
                               <a href="{cancelUrl}"
-                                 style="display:inline-block;padding:11px 28px;color:#B4697B;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
+                                 style="display:inline-block;padding:11px 28px;color:#2F7D6B;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
                                 Cancelar mi turno
                               </a>
                             </td>
@@ -512,17 +561,20 @@ public class ResendEmailService : IEmailService
             <html lang="es">
             <head>
               <meta charset="UTF-8">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
               <meta name="viewport" content="width=device-width,initial-scale=1">
               <title>Recordatorio de turno</title>
             </head>
-            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
                     <tr>
-                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
-                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
-                          ✦ {sucursal}
+                      <td style="background:#2F7D6B;padding:24px 40px 20px;text-align:center;">
+                        <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="56" height="56" style="display:block;margin:0 auto 8px;object-fit:contain;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                          {sucursal}
                         </p>
                       </td>
                     </tr>
@@ -574,7 +626,7 @@ public class ResendEmailService : IEmailService
                     <tr>
                       <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
                         <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
-                          Este recordatorio fue generado automáticamente por TurneroApp.
+                          Este recordatorio fue generado automáticamente por MetaTurnos.
                         </p>
                       </td>
                     </tr>
@@ -602,17 +654,20 @@ public class ResendEmailService : IEmailService
             <html lang="es">
             <head>
               <meta charset="UTF-8">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
               <meta name="viewport" content="width=device-width,initial-scale=1">
               <title>Invitación TurneroApp</title>
             </head>
-            <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
                 <tr><td align="center">
                   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
                     <tr>
-                      <td style="background:#B4697B;padding:32px 40px;text-align:center;">
-                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
-                          ✦ TurneroApp
+                      <td style="background:#2F7D6B;padding:28px 40px;text-align:center;">
+                        <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="80" height="80" style="display:block;margin:0 auto 12px;object-fit:contain;">
+                        <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                          MetaTurnos
                         </p>
                       </td>
                     </tr>
@@ -626,7 +681,7 @@ public class ResendEmailService : IEmailService
                         </p>
                         <table cellpadding="0" cellspacing="0">
                           <tr>
-                            <td style="border-radius:8px;background:#B4697B;">
+                            <td style="border-radius:8px;background:#2F7D6B;">
                               <a href="{link}"
                                  style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
                                 Aceptar invitación
@@ -636,7 +691,7 @@ public class ResendEmailService : IEmailService
                         </table>
                         <p style="margin:28px 0 0;font-size:13px;color:#a1a1aa;">
                           Si el botón no funciona, copiá y pegá este enlace en tu navegador:<br>
-                          <a href="{link}" style="color:#B4697B;word-break:break-all;">{link}</a>
+                          <a href="{link}" style="color:#2F7D6B;word-break:break-all;">{link}</a>
                         </p>
                       </td>
                     </tr>
@@ -655,22 +710,87 @@ public class ResendEmailService : IEmailService
             """;
     }
 
+    private static string PlantillaInvitacionExistente(string nombre, string sucursal, string link) => $"""
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>Invitación TurneroApp</title>
+        </head>
+        <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+            <tr><td align="center">
+              <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                <tr>
+                  <td style="background:#2F7D6B;padding:28px 40px;text-align:center;">
+                    <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="80" height="80" style="display:block;margin:0 auto 12px;object-fit:contain;">
+                    <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                      MetaTurnos
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:40px;">
+                    <h2 style="margin:0 0 12px;font-size:20px;color:#18181b;">¡Hola, {nombre}!</h2>
+                    <p style="margin:0 0 24px;font-size:15px;color:#52525b;line-height:1.6;">
+                      Tu correo ya está registrado en MetaTurnos. Solo necesitás aceptar la invitación para
+                      unirte a <strong>{sucursal}</strong> con tu cuenta existente.
+                    </p>
+                    <p style="margin:0 0 24px;font-size:15px;color:#52525b;line-height:1.6;">
+                      No necesitás crear una nueva contraseña — accedé con la que ya tenés.
+                    </p>
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="border-radius:8px;background:#2F7D6B;">
+                          <a href="{link}"
+                             style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
+                            Aceptar invitación
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="margin:28px 0 0;font-size:13px;color:#a1a1aa;">
+                      Si el botón no funciona, copiá y pegá este enlace en tu navegador:<br>
+                      <a href="{link}" style="color:#2F7D6B;word-break:break-all;">{link}</a>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
+                    <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
+                      Si no esperabas esta invitación podés ignorar este mensaje.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+        </body>
+        </html>
+        """;
+
     private static string PlantillaRecuperacionContrasena(string nombre, string link) => $"""
         <!DOCTYPE html>
         <html lang="es">
         <head>
           <meta charset="UTF-8">
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
           <meta name="viewport" content="width=device-width,initial-scale=1">
           <title>Recuperación de contraseña</title>
         </head>
-        <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif;">
+        <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
             <tr><td align="center">
               <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
                 <tr>
-                  <td style="background:#B4697B;padding:32px 40px;text-align:center;">
-                    <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
-                      ✦ TurneroApp
+                  <td style="background:#2F7D6B;padding:28px 40px;text-align:center;">
+                    <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="80" height="80" style="display:block;margin:0 auto 12px;object-fit:contain;">
+                    <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                      MetaTurnos
                     </p>
                   </td>
                 </tr>
@@ -683,7 +803,7 @@ public class ResendEmailService : IEmailService
                     </p>
                     <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
                       <tr>
-                        <td style="border-radius:8px;background:#B4697B;">
+                        <td style="border-radius:8px;background:#2F7D6B;">
                           <a href="{link}"
                              style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
                             Restablecer contraseña
@@ -693,7 +813,7 @@ public class ResendEmailService : IEmailService
                     </table>
                     <p style="margin:0 0 8px;font-size:13px;color:#a1a1aa;">
                       Si el botón no funciona, copiá y pegá este enlace en tu navegador:<br>
-                      <a href="{link}" style="color:#B4697B;word-break:break-all;">{link}</a>
+                      <a href="{link}" style="color:#2F7D6B;word-break:break-all;">{link}</a>
                     </p>
                   </td>
                 </tr>

@@ -6,72 +6,92 @@ namespace TurneroApp.Application.Services;
 
 public class InvitacionService
 {
+    private readonly IUsuarioSucursalRolRepository _usrRepo;
     private readonly IUsuarioRepository _usuarioRepo;
 
-    public InvitacionService(IUsuarioRepository usuarioRepo)
+    public InvitacionService(
+        IUsuarioSucursalRolRepository usrRepo,
+        IUsuarioRepository usuarioRepo)
     {
+        _usrRepo     = usrRepo;
         _usuarioRepo = usuarioRepo;
     }
 
     /// <summary>
-    /// Valida el token, establece la contraseña y activa al usuario.
+    /// Valida el token, establece la contraseña (si es usuario nuevo) y activa la membresía.
     /// Devuelve los datos del usuario para que la capa Api genere el JWT.
     /// </summary>
     public async Task<UsuarioAutenticadoDto> AceptarAsync(AceptarInvitacionDto dto)
     {
-        var usuario = await _usuarioRepo.GetByInvitacionTokenAsync(dto.Token)
+        var usr = await _usrRepo.GetByInvitacionTokenAsync(dto.Token)
             ?? throw new InvalidOperationException("El enlace de invitación no es válido.");
 
-        if (usuario.Estado != EstadoUsuario.PendienteInvitacion)
+        if (usr.Estado != EstadoUsuario.PendienteInvitacion)
             throw new InvalidOperationException("Esta invitación ya fue utilizada.");
 
-        if (usuario.FechaExpiracionInvitacion.HasValue &&
-            usuario.FechaExpiracionInvitacion.Value < DateTime.UtcNow)
+        if (usr.FechaExpiracionInvitacion.HasValue &&
+            usr.FechaExpiracionInvitacion.Value < DateTime.UtcNow)
             throw new InvalidOperationException(
                 "El enlace de invitación venció. Pedile al administrador que reenvíe la invitación.");
 
-        // Activar usuario
-        usuario.PasswordHash              = dto.NuevaPassword; // TODO: BCrypt.HashPassword
-        usuario.Estado                    = EstadoUsuario.Activo;
-        usuario.InvitacionToken           = null;
-        usuario.FechaExpiracionInvitacion = null;
+        var usuario = usr.Usuario;
 
-        _usuarioRepo.Update(usuario);
-        await _usuarioRepo.SaveChangesAsync();
+        if (!string.IsNullOrWhiteSpace(dto.NuevaPassword))
+        {
+            // Usuario nuevo: establecer la contraseña
+            usuario.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NuevaPassword);
+        }
+        else
+        {
+            // Usuario existente: verificar que ya tiene contraseña
+            if (string.IsNullOrEmpty(usuario.PasswordHash))
+                throw new InvalidOperationException(
+                    "Debés establecer una contraseña para activar tu cuenta.");
+        }
+
+        // Activar membresía
+        usr.Estado                    = EstadoUsuario.Activo;
+        usr.InvitacionToken           = null;
+        usr.FechaExpiracionInvitacion = null;
+
+        _usrRepo.Update(usr);
+        await _usrRepo.SaveChangesAsync();
 
         return new UsuarioAutenticadoDto
         {
-            Rol          = usuario.Rol.ToString(),
+            Rol          = usr.Rol.ToString(),
             Nombre       = usuario.Nombre,
             Apellido     = usuario.Apellido,
             Email        = usuario.Email,
             EsSuperAdmin = false,
-            EsOwner      = usuario.EsOwner,
+            EsOwner      = usr.EsOwner,
             UserId       = usuario.Id,
-            SucursalId   = usuario.SucursalId,
+            SucursalId   = usr.SucursalId,
+            Permisos     = usr.Permisos.Select(p => p.Permiso.ToString()).ToList(),
         };
     }
 
-    /// <summary>Devuelve info pública del token (nombre, sucursal) sin exponer datos sensibles.</summary>
+    /// <summary>Devuelve info pública del token (nombre, sucursal, yaRegistrado) sin exponer datos sensibles.</summary>
     public async Task<InfoInvitacionDto> ObtenerInfoAsync(string token)
     {
-        var usuario = await _usuarioRepo.GetByInvitacionTokenAsync(token)
+        var usr = await _usrRepo.GetByInvitacionTokenAsync(token)
             ?? throw new InvalidOperationException("El enlace de invitación no es válido.");
 
-        if (usuario.Estado != EstadoUsuario.PendienteInvitacion)
+        if (usr.Estado != EstadoUsuario.PendienteInvitacion)
             throw new InvalidOperationException("Esta invitación ya fue utilizada.");
 
-        if (usuario.FechaExpiracionInvitacion.HasValue &&
-            usuario.FechaExpiracionInvitacion.Value < DateTime.UtcNow)
+        if (usr.FechaExpiracionInvitacion.HasValue &&
+            usr.FechaExpiracionInvitacion.Value < DateTime.UtcNow)
             throw new InvalidOperationException("El enlace de invitación venció.");
 
         return new InfoInvitacionDto
         {
-            Nombre        = usuario.Nombre,
-            Apellido      = usuario.Apellido,
-            Email         = usuario.Email,
-            NombreSucursal = usuario.Sucursal?.Nombre ?? string.Empty,
-            Rol            = usuario.Rol.ToString(),
+            Nombre         = usr.Usuario.Nombre,
+            Apellido       = usr.Usuario.Apellido,
+            Email          = usr.Usuario.Email,
+            NombreSucursal = usr.Sucursal?.Nombre ?? string.Empty,
+            Rol            = usr.Rol.ToString(),
+            YaRegistrado   = !string.IsNullOrEmpty(usr.Usuario.PasswordHash),
         };
     }
 }
@@ -83,4 +103,5 @@ public class InfoInvitacionDto
     public string Email { get; set; } = string.Empty;
     public string NombreSucursal { get; set; } = string.Empty;
     public string Rol { get; set; } = string.Empty;
+    public bool YaRegistrado { get; set; }
 }

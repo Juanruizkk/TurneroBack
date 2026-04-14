@@ -341,12 +341,12 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Property<TimeSpan>("HoraHasta")
                         .HasColumnType("interval");
 
-                    b.Property<Guid>("UsuarioId")
+                    b.Property<Guid>("UsuarioSucursalRolId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UsuarioId");
+                    b.HasIndex("UsuarioSucursalRolId");
 
                     b.ToTable("horarios_laborales", (string)null);
                 });
@@ -427,6 +427,57 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.ToTable("pagos_turno", (string)null);
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.Plan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("DuracionTrialDias")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(14);
+
+                    b.Property<bool>("EsActivo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<int?>("MaxServicios")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MaxTurnosMes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxUsuarios")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("OrdenDisplay")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<decimal>("PrecioMensual")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("TieneReportes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.HasKey("Id");
+
+                    b.ToTable("planes", (string)null);
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.Servicio", b =>
                 {
                     b.Property<Guid>("Id")
@@ -498,6 +549,14 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
+                    b.Property<string>("BackgroundPublicId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("BackgroundUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<string>("Direccion")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -513,9 +572,13 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasColumnType("timestamptz")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<string>("FotoUrl")
+                    b.Property<string>("FotoPublicId")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<string>("FotoUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("Moneda")
                         .IsRequired()
@@ -539,6 +602,11 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("Telefono")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -546,7 +614,93 @@ namespace TurneroApp.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("IX_sucursales_slug");
+
                     b.ToTable("sucursales", (string)null);
+                });
+
+            modelBuilder.Entity("TurneroApp.Domain.Entities.SucursalMercadoPago", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccessToken")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("AccessTokenExpiraEnUtc")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("FechaConexionUtc")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("MpUserId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("RefreshToken")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("RefreshTokenExpiraEnUtc")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<Guid>("SucursalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UltimaActualizacionUtc")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SucursalId")
+                        .IsUnique();
+
+                    b.ToTable("sucursal_mercadopago", (string)null);
+                });
+
+            modelBuilder.Entity("TurneroApp.Domain.Entities.SucursalSuscripcion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EnPeriodoPrueba")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaInicio")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTime>("FechaVencimiento")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SucursalId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("SucursalId");
+
+                    b.ToTable("sucursal_suscripciones", (string)null);
                 });
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.Turno", b =>
@@ -571,6 +725,10 @@ namespace TurneroApp.Infrastructure.Migrations
 
                     b.Property<decimal?>("MontoSena")
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("MpCheckoutUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("MpPreferenceId")
                         .HasMaxLength(200)
@@ -646,20 +804,8 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<bool>("EsOwner")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<int>("Estado")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("FechaExpiracionInvitacion")
+                    b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamptz");
-
-                    b.Property<string>("InvitacionToken")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -671,11 +817,12 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<int>("Rol")
-                        .HasColumnType("integer");
+                    b.Property<string>("SeleccionToken")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
-                    b.Property<Guid>("SucursalId")
-                        .HasColumnType("uuid");
+                    b.Property<DateTime?>("SeleccionTokenExpiracion")
+                        .HasColumnType("timestamptz");
 
                     b.Property<string>("Telefono")
                         .IsRequired()
@@ -691,16 +838,15 @@ namespace TurneroApp.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("InvitacionToken")
-                        .IsUnique()
-                        .HasFilter("\"InvitacionToken\" IS NOT NULL");
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("SeleccionToken")
+                        .HasFilter("\"SeleccionToken\" IS NOT NULL");
 
                     b.HasIndex("TokenRecuperacion")
                         .IsUnique()
                         .HasFilter("\"TokenRecuperacion\" IS NOT NULL");
-
-                    b.HasIndex("SucursalId", "Email")
-                        .IsUnique();
 
                     b.ToTable("usuarios", (string)null);
                 });
@@ -713,14 +859,14 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Property<int>("Permiso")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("UsuarioId")
+                    b.Property<Guid>("UsuarioSucursalRolId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UsuarioId");
+                    b.HasIndex("UsuarioSucursalRolId");
 
-                    b.HasIndex("UsuarioId", "Permiso")
+                    b.HasIndex("UsuarioSucursalRolId", "Permiso")
                         .IsUnique();
 
                     b.ToTable("usuario_permisos", (string)null);
@@ -728,17 +874,63 @@ namespace TurneroApp.Infrastructure.Migrations
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.UsuarioServicio", b =>
                 {
-                    b.Property<Guid>("UsuarioId")
+                    b.Property<Guid>("UsuarioSucursalRolId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ServicioId")
                         .HasColumnType("uuid");
 
-                    b.HasKey("UsuarioId", "ServicioId");
+                    b.HasKey("UsuarioSucursalRolId", "ServicioId");
 
                     b.HasIndex("ServicioId");
 
                     b.ToTable("usuario_servicios", (string)null);
+                });
+
+            modelBuilder.Entity("TurneroApp.Domain.Entities.UsuarioSucursalRol", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EsOwner")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTime?>("FechaExpiracionInvitacion")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("InvitacionToken")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Rol")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SucursalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvitacionToken")
+                        .IsUnique()
+                        .HasFilter("\"InvitacionToken\" IS NOT NULL");
+
+                    b.HasIndex("SucursalId");
+
+                    b.HasIndex("UsuarioId", "SucursalId")
+                        .IsUnique();
+
+                    b.ToTable("usuario_sucursal_roles", (string)null);
                 });
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.AdjuntoTurno", b =>
@@ -857,13 +1049,13 @@ namespace TurneroApp.Infrastructure.Migrations
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.HorarioLaboral", b =>
                 {
-                    b.HasOne("TurneroApp.Domain.Entities.Usuario", "Usuario")
+                    b.HasOne("TurneroApp.Domain.Entities.UsuarioSucursalRol", "UsuarioSucursalRol")
                         .WithMany("HorariosLaborales")
-                        .HasForeignKey("UsuarioId")
+                        .HasForeignKey("UsuarioSucursalRolId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Usuario");
+                    b.Navigation("UsuarioSucursalRol");
                 });
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.MovimientoCaja", b =>
@@ -928,6 +1120,36 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Navigation("Sucursal");
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.SucursalMercadoPago", b =>
+                {
+                    b.HasOne("TurneroApp.Domain.Entities.Sucursal", "Sucursal")
+                        .WithMany()
+                        .HasForeignKey("SucursalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Sucursal");
+                });
+
+            modelBuilder.Entity("TurneroApp.Domain.Entities.SucursalSuscripcion", b =>
+                {
+                    b.HasOne("TurneroApp.Domain.Entities.Plan", "Plan")
+                        .WithMany("Suscripciones")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TurneroApp.Domain.Entities.Sucursal", "Sucursal")
+                        .WithMany()
+                        .HasForeignKey("SucursalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+
+                    b.Navigation("Sucursal");
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.Turno", b =>
                 {
                     b.HasOne("TurneroApp.Domain.Entities.Cliente", "Cliente")
@@ -963,26 +1185,15 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Navigation("Sucursal");
                 });
 
-            modelBuilder.Entity("TurneroApp.Domain.Entities.Usuario", b =>
-                {
-                    b.HasOne("TurneroApp.Domain.Entities.Sucursal", "Sucursal")
-                        .WithMany("Usuarios")
-                        .HasForeignKey("SucursalId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Sucursal");
-                });
-
             modelBuilder.Entity("TurneroApp.Domain.Entities.UsuarioPermiso", b =>
                 {
-                    b.HasOne("TurneroApp.Domain.Entities.Usuario", "Usuario")
+                    b.HasOne("TurneroApp.Domain.Entities.UsuarioSucursalRol", "UsuarioSucursalRol")
                         .WithMany("Permisos")
-                        .HasForeignKey("UsuarioId")
+                        .HasForeignKey("UsuarioSucursalRolId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Usuario");
+                    b.Navigation("UsuarioSucursalRol");
                 });
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.UsuarioServicio", b =>
@@ -993,13 +1204,32 @@ namespace TurneroApp.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TurneroApp.Domain.Entities.Usuario", "Usuario")
+                    b.HasOne("TurneroApp.Domain.Entities.UsuarioSucursalRol", "UsuarioSucursalRol")
                         .WithMany("Servicios")
-                        .HasForeignKey("UsuarioId")
+                        .HasForeignKey("UsuarioSucursalRolId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Servicio");
+
+                    b.Navigation("UsuarioSucursalRol");
+                });
+
+            modelBuilder.Entity("TurneroApp.Domain.Entities.UsuarioSucursalRol", b =>
+                {
+                    b.HasOne("TurneroApp.Domain.Entities.Sucursal", "Sucursal")
+                        .WithMany("UsuarioSucursalRoles")
+                        .HasForeignKey("SucursalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TurneroApp.Domain.Entities.Usuario", "Usuario")
+                        .WithMany("Sucursales")
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Sucursal");
 
                     b.Navigation("Usuario");
                 });
@@ -1026,6 +1256,11 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Navigation("PagoTurno");
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.Plan", b =>
+                {
+                    b.Navigation("Suscripciones");
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.Servicio", b =>
                 {
                     b.Navigation("Turnos");
@@ -1045,7 +1280,7 @@ namespace TurneroApp.Infrastructure.Migrations
 
                     b.Navigation("Turnos");
 
-                    b.Navigation("Usuarios");
+                    b.Navigation("UsuarioSucursalRoles");
                 });
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.Turno", b =>
@@ -1063,15 +1298,20 @@ namespace TurneroApp.Infrastructure.Migrations
 
                     b.Navigation("ComentariosRealizados");
 
-                    b.Navigation("HorariosLaborales");
-
                     b.Navigation("MovimientosRegistrados");
+
+                    b.Navigation("Sucursales");
+
+                    b.Navigation("TurnosComoProfesional");
+                });
+
+            modelBuilder.Entity("TurneroApp.Domain.Entities.UsuarioSucursalRol", b =>
+                {
+                    b.Navigation("HorariosLaborales");
 
                     b.Navigation("Permisos");
 
                     b.Navigation("Servicios");
-
-                    b.Navigation("TurnosComoProfesional");
                 });
 #pragma warning restore 612, 618
         }

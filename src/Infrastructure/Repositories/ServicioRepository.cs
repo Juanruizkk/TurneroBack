@@ -18,4 +18,7 @@ public class ServicioRepository : GenericRepository<Servicio>, IServicioReposito
             .OrderBy(s => s.Nombre)
             .ToListAsync();
     }
+
+    public async Task<int> ContarActivosBySucursalAsync(Guid sucursalId)
+        => await _dbSet.CountAsync(s => s.SucursalId == sucursalId && s.Activo);
 }

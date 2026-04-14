@@ -7,8 +7,10 @@ public class AceptarInvitacionDto
     [Required]
     public string Token { get; set; } = string.Empty;
 
-    [Required]
+    /// <summary>
+    /// Contraseña para usuarios nuevos. Null para usuarios que ya tienen cuenta.
+    /// </summary>
     [MinLength(6)]
     [MaxLength(200)]
-    public string NuevaPassword { get; set; } = string.Empty;
+    public string? NuevaPassword { get; set; }
 }

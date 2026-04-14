@@ -53,10 +53,11 @@ public class AjustesService
 
         return new AjustesSucursalDto
         {
-            Nombre    = sucursal.Nombre,
-            Slogan    = sucursal.Slogan,
-            FotoUrl   = sucursal.FotoUrl,
-            Rubros    = sucursal.Rubros,
+            Nombre        = sucursal.Nombre,
+            Slogan        = sucursal.Slogan,
+            FotoUrl       = sucursal.FotoUrl,
+            BackgroundUrl = sucursal.BackgroundUrl,
+            Rubros        = sucursal.Rubros,
             Moneda    = sucursal.Moneda,
             Direccion = sucursal.Direccion,
             Telefono  = sucursal.Telefono,

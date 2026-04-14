@@ -14,6 +14,16 @@ public interface IEmailService
         string nombreSucursal,
         string linkInvitacion);
 
+    /// <summary>
+    /// Envía una invitación a un usuario que ya tiene cuenta en otra sucursal.
+    /// No pide contraseña — solo aceptar para unirse.
+    /// </summary>
+    Task EnviarInvitacionUsuarioExistenteAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string linkInvitacion);
+
     Task EnviarConfirmacionTurnoAsync(
         string destinatarioEmail,
         string destinatarioNombre,
@@ -54,6 +64,13 @@ public interface IEmailService
         string destinatarioEmail,
         string destinatarioNombre,
         string linkRecuperacion);
+
+    /// <summary>Email de bienvenida enviado tras el registro self-service.</summary>
+    Task EnviarBienvenidaAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreNegocio,
+        string urlPanel);
 
     /// <summary>
     /// Recordatorio automático enviado antes del turno.

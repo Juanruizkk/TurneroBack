@@ -6,7 +6,7 @@ Tests que verifican la lógica de negocio de `TurnoService` y `AdjuntoTurnoServi
 
 **Proyecto:** `tests/TurneroApp.Tests/`
 **Framework:** xUnit 2.6 + Moq 4.20 + FluentAssertions 6.12
-**Cobertura:** 43 tests — `CreateAsync` (+3 nuevos: `PendientePago`, email omitido para PendientePago, `FechaCreacion`), `UpdateEstadoAsync`, `CrearComentarioAsync`, `EliminarComentarioAsync`, `ListarAsync`, `SubirAsync`, `EliminarAsync`
+**Cobertura:** 49 tests — `CreateAsync` (incluye guard de suscripción + límites de plan por `MaxTurnosMes`), `UpdateEstadoAsync`, `CrearComentarioAsync`, `EliminarComentarioAsync`, `ListarAsync`, `SubirAsync`, `EliminarAsync`
 
 ---
 
@@ -19,12 +19,15 @@ tests/
 └── TurneroApp.Tests/
     ├── TurneroApp.Tests.csproj
     ├── Helpers/
-    │   └── TurnoTestFactory.cs        ← fábrica de entidades de prueba
+    │   ├── TurnoTestFactory.cs        ← fábrica de entidades de prueba
+    │   ├── SuscripcionTestFactory.cs  ← fábrica de planes y suscripciones
+    │   └── UsuarioTestFactory.cs      ← fábrica de entidades de usuario
     └── Services/
-        ├── TurnoServiceCreateTests.cs          (18 tests — incluye 3 de PendientePago/FechaCreacion)
-        ├── TurnoServiceUpdateTests.cs          (8 tests)
-        ├── TurnoServiceComentariosTests.cs     (6 tests)
-        └── AdjuntoTurnoServiceTests.cs         (11 tests)
+        ├── TurnoServiceCreateTests.cs           (22 tests — incluye 4 de límites por plan)
+        ├── TurnoServiceSuscripcionTests.cs      (2 tests — guard de suscripción)
+        ├── TurnoServiceUpdateTests.cs           (8 tests)
+        ├── TurnoServiceComentariosTests.cs      (6 tests)
+        └── AdjuntoTurnoServiceTests.cs          (11 tests)
 ```
 
 ---
@@ -36,24 +39,32 @@ cd backend
 dotnet test tests/TurneroApp.Tests/TurneroApp.Tests.csproj --verbosity normal
 ```
 
-Resultado esperado: **40 passed, 0 failed** en ~3 segundos.
+Resultado esperado: **165 passed, 0 failed** en ~3 segundos.
+
+Para filtrar solo los tests de `TurnoService`:
+
+```bash
+dotnet test --filter "FullyQualifiedName~TurnoService"
+```
 
 ---
 
 ## Dependencias mockeadas
 
-### TurnoService (6 mocks)
+### TurnoService (8 mocks)
 
-Todos los tests instancian `TurnoService` con mocks de sus 6 dependencias:
+Todos los tests instancian `TurnoService` con mocks de sus dependencias:
 
 | Dependencia | Tipo | Qué se mockea |
 |---|---|---|
-| `ITurnoRepository` | Repositorio | CRUD, conflictos, carga con relaciones |
+| `ITurnoRepository` | Repositorio | CRUD, conflictos, carga con relaciones, `ContarPorSucursalEnMesAsync` |
 | `IServicioRepository` | Repositorio | Búsqueda por Id |
 | `IClienteRepository` | Repositorio | Búsqueda por Id |
 | `ISucursalRepository` | Repositorio | Config de confirmación, datos para emails |
 | `IEmailService` | Servicio externo | Envío de confirmaciones y cancelaciones |
 | `IComentarioTurnoRepository` | Repositorio | CRUD de comentarios |
+| `ISuscripcionRepository` | Repositorio | `GetBySucursalAsync` — devuelve `null` por defecto (sin restricción) |
+| `SuscripcionGuard` | Servicio de aplicación | Se construye con `new SuscripcionGuard(_suscripcionRepo.Object)`; comparte el mismo mock de `ISuscripcionRepository`. En `TurnoServiceCreateTests` y `TurnoServiceSuscripcionTests` se pasa explícitamente; en `UpdateTests` y `ComentariosTests` se omite (parámetro nullable) |
 
 ### AdjuntoTurnoService (2 mocks)
 
@@ -76,6 +87,8 @@ Clase estática interna con métodos para construir entidades con valores por de
 | `CrearSucursalConConfig(modo)` | `Sucursal` con `ConfiguracionSucursal` y modo de confirmación |
 | `CrearDto(...)` | `CreateTurnoDto` con todos los Ids generados y fecha futura |
 | `CrearTurnoConRelaciones(...)` | `Turno` con `Cliente` y `Servicio` cargados (simula carga EF) |
+
+> Para entidades de usuarios ver `UsuarioTestFactory` — documentado en `AuthService-UsuarioService.tests.md`.
 
 ---
 
@@ -122,6 +135,31 @@ Patrón de cada test: **Arrange / Act / Assert** con mocks de repositorios.
 | `Create_ClienteConEmail_EnviaEmailConfirmacion` | Si el cliente tiene email, `EnviarConfirmacionTurnoAsync` se llama exactamente 1 vez |
 | `Create_ClienteSinEmail_NoEnviaEmail` | Si `cliente.Email == null`, `EnviarConfirmacionTurnoAsync` nunca se llama |
 | `Create_EmailFalla_NoLanzaException` | Si el email service lanza una excepción, `CreateAsync` igual completa sin error (el email es no-crítico) |
+
+### Tests de límite de turnos por plan (`MaxTurnosMes`)
+
+Setup base: `_suscripcionRepo.Setup(...)` devuelve `null` (sin suscripción → sin restricción) en `SetupCrearOk()`.
+
+| Test | Escenario | Resultado esperado |
+|---|---|---|
+| `Create_SinSuscripcion_NoValidaLimiteTurnos` | `GetBySucursalAsync` devuelve `null` | Crea OK — sin suscripción no hay restricción |
+| `Create_MaxTurnosMesNull_Ilimitado_Permite` | Plan con `MaxTurnosMes = null` | Crea OK — `null` significa ilimitado |
+| `Create_DebajoDeLimiteTurnos_Permite` | 49 turnos usados en el mes, límite 50 | Crea OK — `49 < 50` no bloquea |
+| `Create_LimiteTurnosSuperado_LanzaException` | 50 turnos usados en el mes, límite 50 | Lanza `InvalidOperationException` con nombre del plan |
+
+El mensaje de la excepción cuando se supera el límite:
+> `"Tu plan Básico permite hasta 50 turnos por mes. Actualizá tu suscripción para continuar."`
+
+---
+
+## TurnoServiceSuscripcionTests — `CreateAsync`
+
+### Estado de suscripción (`SuscripcionGuard`)
+
+| Test | Escenario | Resultado esperado |
+|---|---|---|
+| `CreateAsync_SuscripcionVencida_LanzaSuscripcionVencidaException` | Suscripción en estado `PruebVencida` | Lanza `SuscripcionVencidaException` antes de cargar servicio y cliente |
+| `CreateAsync_SuscripcionVencida_NoLlamaAddAsync` | Suscripción en estado `PruebVencida` | `_turnoRepo.AddAsync` nunca es invocado |
 
 ---
 
@@ -218,6 +256,12 @@ Patrón de cada test: **Arrange / Act / Assert** con mocks de `IAdjuntoTurnoRepo
 | Emails son no-críticos (nunca bloquean la operación) | `Create_EmailFalla`, `Update_EmailCancelacion_Falla` |
 | `CanceladoCliente` notifica al profesional o a la sucursal | `Update_CanceladoCliente_EnviaEmailAlClienteYAlProfesional` |
 | Solo el autor puede eliminar su comentario | `EliminarComentario_DeOtroAutor_LanzaException` |
+| Suscripción vencida bloquea antes de cargar entidades | `CreateAsync_SuscripcionVencida_LanzaSuscripcionVencidaException` |
+| Suscripción vencida no llega a persistir | `CreateAsync_SuscripcionVencida_NoLlamaAddAsync` |
+| Sin suscripción → sin restricción de turnos | `Create_SinSuscripcion_NoValidaLimiteTurnos` |
+| `MaxTurnosMes = null` → ilimitado | `Create_MaxTurnosMesNull_Ilimitado_Permite` |
+| `usados < MaxTurnosMes` → permite crear | `Create_DebajoDeLimiteTurnos_Permite` |
+| `usados >= MaxTurnosMes` → lanza excepción con nombre del plan | `Create_LimiteTurnosSuperado_LanzaException` |
 | Cloudinary se llama antes de persistir en DB (subida) | `Subir_PersisteDespuesDeCloudinary` |
 | Si Cloudinary falla al subir, la DB no se toca | `Subir_CloudinaryFalla_NoPersiste` |
 | El tipo de recurso (`image`/`raw`) se preserva y se usa al borrar | `Subir_Pdf_TipoRecursoEsRaw`, `Eliminar_LlamaCloudinaryConPublicIdYTipoRecursoCorrectos` |

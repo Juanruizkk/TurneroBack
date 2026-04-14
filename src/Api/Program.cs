@@ -13,6 +13,7 @@ using TurneroApp.Infrastructure.Services;
 using TurneroApp.Infrastructure.Services.MercadoPago;
 using Resend;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── JWT Authentication ───────────────────────────────────────────────────────
@@ -107,7 +108,9 @@ builder.Services.AddScoped<OnboardingService>();
 builder.Services.AddScoped<SuscripcionGuard>();
 builder.Services.AddScoped<SuscripcionService>(sp => new SuscripcionService(
     sp.GetRequiredService<ISuscripcionRepository>(),
-    sp.GetRequiredService<ISucursalRepository>()));
+    sp.GetRequiredService<ISucursalRepository>(),
+    sp.GetRequiredService<IUsuarioSucursalRolRepository>(),
+    sp.GetRequiredService<ITurnoRepository>()));
 builder.Services.AddScoped<IAdjuntoService, CloudinaryService>();
 builder.Services.AddScoped<AdjuntoTurnoService>();
 builder.Services.AddScoped<PublicoService>(sp => new PublicoService(
@@ -126,18 +129,25 @@ builder.Services.AddScoped<RecuperacionContrasenaService>(sp => new Recuperacion
     builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173"));
 builder.Services.AddScoped<JwtService>();
 
+
 // ─── MercadoPago ─────────────────────────────────────────────────────────────
-builder.Services.Configure<MercadoPagoOptions>(
-    builder.Configuration.GetSection(MercadoPagoOptions.SectionName));
 builder.Services.AddScoped<IMercadoPagoGateway, MercadoPagoGateway>();
+
+// ─── MercadoPago OAuth ───────────────────────────────────────────────────────
+builder.Services.Configure<MercadoPagoOAuthOptions>(
+    builder.Configuration.GetSection(MercadoPagoOAuthOptions.SectionName));
+builder.Services.AddScoped<ISucursalMercadoPagoRepository, SucursalMercadoPagoRepository>();
+builder.Services.AddHttpClient<IMercadoPagoOAuthService, MercadoPagoOAuthService>();
 builder.Services.AddScoped<IPagoTurnoService>(sp => new PagoTurnoService(
     sp.GetRequiredService<ITurnoRepository>(),
     sp.GetRequiredService<ICajaRepository>(),
     sp.GetRequiredService<ISucursalRepository>(),
     sp.GetRequiredService<IMercadoPagoGateway>(),
+    sp.GetRequiredService<IMercadoPagoOAuthService>(),
     sp.GetRequiredService<IEmailService>(),
     sp.GetRequiredService<ILogger<PagoTurnoService>>(),
     builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173",
+    builder.Configuration["App:BackendUrl"]  ?? "http://localhost:5000",
     sp.GetRequiredService<ITurnoNotificacionService>()
 ));
 builder.Services.AddHostedService<TurnoAutoNoShowService>();
@@ -311,3 +321,5 @@ if (app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+

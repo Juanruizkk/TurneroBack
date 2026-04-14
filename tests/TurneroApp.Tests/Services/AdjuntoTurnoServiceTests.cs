@@ -83,7 +83,7 @@ public class AdjuntoTurnoServiceTests
         var contentType = "image/jpeg";
 
         _cloudinary
-            .Setup(c => c.SubirArchivoAsync(stream, fileName, contentType))
+            .Setup(c => c.SubirArchivoAsync(stream, fileName, contentType, It.IsAny<string?>()))
             .ReturnsAsync(("https://res.cloudinary.com/foto.jpg", "TurneroApp/Adjuntos/foto_abc", "image"));
 
         _repo.Setup(r => r.AddAsync(It.IsAny<AdjuntoTurno>())).Returns(Task.CompletedTask);
@@ -110,7 +110,7 @@ public class AdjuntoTurnoServiceTests
         var contentType = "application/pdf";
 
         _cloudinary
-            .Setup(c => c.SubirArchivoAsync(stream, fileName, contentType))
+            .Setup(c => c.SubirArchivoAsync(stream, fileName, contentType, It.IsAny<string?>()))
             .ReturnsAsync(("https://res.cloudinary.com/informe.pdf", "TurneroApp/Adjuntos/informe_xyz", "raw"));
 
         _repo.Setup(r => r.AddAsync(It.IsAny<AdjuntoTurno>())).Returns(Task.CompletedTask);
@@ -131,7 +131,7 @@ public class AdjuntoTurnoServiceTests
         var llamadas = new List<string>();
 
         _cloudinary
-            .Setup(c => c.SubirArchivoAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(c => c.SubirArchivoAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()))
             .Callback(() => llamadas.Add("cloudinary"))
             .ReturnsAsync(("https://url", "publicId", "image"));
 
@@ -155,7 +155,7 @@ public class AdjuntoTurnoServiceTests
     {
         // Arrange
         _cloudinary
-            .Setup(c => c.SubirArchivoAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(c => c.SubirArchivoAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()))
             .ThrowsAsync(new Exception("Cloudinary no disponible"));
 
         // Act

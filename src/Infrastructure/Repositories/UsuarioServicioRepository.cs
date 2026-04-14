@@ -11,34 +11,38 @@ public class UsuarioServicioRepository : IUsuarioServicioRepository
 
     public UsuarioServicioRepository(AppDbContext context) => _context = context;
 
+    /// <inheritdoc />
     public Task<List<UsuarioServicio>> GetByUsuarioIdAsync(Guid usuarioId) =>
         _context.UsuarioServicios
-            .Where(us => us.UsuarioId == usuarioId)
+            .Where(us => us.UsuarioSucursalRol.UsuarioId == usuarioId)
             .ToListAsync();
 
+    /// <inheritdoc />
     public async Task<Dictionary<Guid, List<UsuarioServicio>>> GetByUsuariosAsync(IEnumerable<Guid> usuarioIds)
     {
         var ids = usuarioIds.ToList();
         var lista = await _context.UsuarioServicios
-            .Where(us => ids.Contains(us.UsuarioId))
+            .Include(us => us.UsuarioSucursalRol)
+            .Where(us => ids.Contains(us.UsuarioSucursalRol.UsuarioId))
             .ToListAsync();
         return lista
-            .GroupBy(us => us.UsuarioId)
+            .GroupBy(us => us.UsuarioSucursalRol.UsuarioId)
             .ToDictionary(g => g.Key, g => g.ToList());
     }
 
-    public async Task ReplaceAsync(Guid usuarioId, IEnumerable<Guid> servicioIds)
+    /// <inheritdoc />
+    public async Task ReplaceAsync(Guid usuarioSucursalRolId, IEnumerable<Guid> servicioIds)
     {
         var existentes = await _context.UsuarioServicios
-            .Where(us => us.UsuarioId == usuarioId)
+            .Where(us => us.UsuarioSucursalRolId == usuarioSucursalRolId)
             .ToListAsync();
 
         _context.UsuarioServicios.RemoveRange(existentes);
 
         var nuevos = servicioIds.Select(sId => new UsuarioServicio
         {
-            UsuarioId  = usuarioId,
-            ServicioId = sId,
+            UsuarioSucursalRolId = usuarioSucursalRolId,
+            ServicioId           = sId,
         });
         await _context.UsuarioServicios.AddRangeAsync(nuevos);
     }

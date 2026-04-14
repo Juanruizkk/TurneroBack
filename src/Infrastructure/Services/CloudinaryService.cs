@@ -7,7 +7,8 @@ namespace TurneroApp.Infrastructure.Services;
 
 public class CloudinaryService : IAdjuntoService
 {
-    private const string Folder = "TurneroApp/Adjuntos";
+    private const string FolderAdjuntos  = "TurneroApp/Adjuntos";
+    private const string FolderSucursales = "TurneroApp/Sucursales";
 
     private readonly Cloudinary _cloudinary;
 
@@ -25,16 +26,18 @@ public class CloudinaryService : IAdjuntoService
     public async Task<(string Url, string PublicId, string TipoRecurso)> SubirArchivoAsync(
         Stream stream,
         string fileName,
-        string contentType)
+        string contentType,
+        string? carpeta = null)
     {
-        var esPdf = contentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase);
+        var folder = carpeta ?? FolderAdjuntos;
+        var esPdf  = contentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase);
 
         if (esPdf)
         {
             var uploadParams = new RawUploadParams
             {
                 File           = new FileDescription(fileName, stream),
-                Folder         = Folder,
+                Folder         = folder,
                 UseFilename    = true,
                 UniqueFilename = true,
             };
@@ -51,7 +54,7 @@ public class CloudinaryService : IAdjuntoService
             var uploadParams = new ImageUploadParams
             {
                 File           = new FileDescription(fileName, stream),
-                Folder         = Folder,
+                Folder         = folder,
                 UseFilename    = true,
                 UniqueFilename = true,
             };
@@ -64,6 +67,7 @@ public class CloudinaryService : IAdjuntoService
             return (result.SecureUrl.ToString(), result.PublicId, "image");
         }
     }
+
 
     /// <inheritdoc />
     public async Task EliminarArchivoAsync(string publicId, string tipoRecurso)

@@ -72,6 +72,28 @@ public class ConsoleEmailService : IEmailService
         return Task.CompletedTask;
     }
 
+    public Task EnviarInvitacionUsuarioExistenteAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string linkInvitacion)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║     [DEV] EMAIL INVITACIÓN (usuario existente)       ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:     {Email}
+            ║  Nombre:   {Nombre}
+            ║  Sucursal: {Sucursal}
+            ║  Link:     {Link}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, nombreSucursal, linkInvitacion);
+
+        return Task.CompletedTask;
+    }
+
     public Task EnviarReenvioInvitacionAsync(
         string destinatarioEmail,
         string destinatarioNombre,
@@ -187,6 +209,28 @@ public class ConsoleEmailService : IEmailService
             ╚══════════════════════════════════════════════════════╝
             """,
             destinatarioEmail, destinatarioNombre, linkRecuperacion);
+
+        return Task.CompletedTask;
+    }
+
+    public Task EnviarBienvenidaAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreNegocio,
+        string urlPanel)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║           [DEV] EMAIL DE BIENVENIDA                  ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:    {Email}
+            ║  Nombre:  {Nombre}
+            ║  Negocio: {Negocio}
+            ║  Panel:   {Panel}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, nombreNegocio, urlPanel);
 
         return Task.CompletedTask;
     }

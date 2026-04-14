@@ -2,14 +2,16 @@
 
 Documento de referencia para el sistema de control de acceso de TurneroApp.
 
+> **Actualizado**: los permisos ahora son **por membresía** (`UsuarioSucursalRol`), no por usuario global. Ver [`usuario-sucursal-rol.md`](./usuario-sucursal-rol.md) para el contexto arquitectural.
+
 ---
 
 ## Modelo de acceso
 
 El sistema tiene dos capas de control de acceso que coexisten:
 
-1. **Rol** (`RolUsuario`): define el perfil base del usuario. Determina a qué secciones puede acceder por defecto.
-2. **Permisos granulares** (`PermisoSistema`): lista de capacidades adicionales que se asignan individualmente sobre el rol base.
+1. **Rol** (`RolUsuario`): define el perfil base de la membresía en una sucursal. Determina a qué secciones puede acceder por defecto.
+2. **Permisos granulares** (`PermisoSistema`): capacidades adicionales asignadas individualmente sobre el rol base.
 
 Un usuario tiene acceso a una funcionalidad si su **rol** lo permite O si tiene el **permiso granular** correspondiente. Los administradores (`esOwner` o rol `Administrativo`) tienen acceso completo sin necesitar permisos individuales.
 
@@ -17,31 +19,41 @@ Un usuario tiene acceso a una funcionalidad si su **rol** lo permite O si tiene 
 
 ## Roles (`RolUsuario`)
 
-Definidos en `src/Domain/Enums/RolUsuario.cs`. Persistidos como `int` en la DB.
+Definidos en `src/Domain/Enums/RolUsuario.cs`. Persistidos como `int` en `UsuarioSucursalRol.Rol`.
 
-| Valor | Nombre          | Descripción                                                                 |
-|-------|-----------------|-----------------------------------------------------------------------------|
-| `0`   | `Administrativo`| Acceso completo al panel. Equivalente funcional al Owner para la operación diaria |
-| `1`   | `Profesional`   | Accede a su agenda, puede ver y gestionar sus propios turnos                |
-| `2`   | `Caja`          | Accede al módulo de caja y cobranzas                                        |
+| Valor | Nombre | Descripción |
+|-------|--------|-------------|
+| `0` | `Administrativo` | Acceso completo al panel. Equivalente funcional al Owner para la operación diaria |
+| `1` | `Profesional` | Accede a su agenda, puede ver y gestionar sus propios turnos |
+| `2` | `Caja` | Accede al módulo de caja y cobranzas |
 
-Adicionalmente existe el flag `esOwner` (booleano en la entidad `Usuario`) que otorga el nivel más alto de acceso, incluyendo operaciones de gestión de sucursal.
+El flag `EsOwner` (booleano en `UsuarioSucursalRol`) otorga el nivel más alto de acceso, incluyendo operaciones de gestión de sucursal. Un mismo Usuario puede ser Owner en una sucursal y Profesional en otra.
 
 ---
 
 ## Permisos granulares (`PermisoSistema`)
 
-Definidos en `src/Domain/Enums/PermisoSistema.cs`. Almacenados como lista de enteros en la tabla `usuario_permisos` (una fila por permiso por usuario).
+Definidos en `src/Domain/Enums/PermisoSistema.cs`. Almacenados en la tabla `usuario_permisos`, **una fila por permiso por `UsuarioSucursalRolId`**.
 
-| Valor | Nombre                | Qué desbloquea                                                                 |
-|-------|-----------------------|--------------------------------------------------------------------------------|
-| `0`   | `AgendarTurnos`       | Permite crear nuevos turnos desde el panel admin                               |
-| `1`   | `EditarTurnos`        | Permite modificar el estado, horario y profesional de turnos existentes        |
-| `2`   | `CargarCobranzas`     | Permite registrar pagos y movimientos en caja                                  |
-| `3`   | `VerTelefonoClientes` | Permite ver el teléfono de los clientes en la ficha de cliente                 |
-| `4`   | `GestionarAjustes`    | Permite acceder a la sección Ajustes del panel y modificar la configuración de la sucursal |
+| Valor | Nombre | Qué desbloquea |
+|-------|--------|----------------|
+| `0` | `AgendarTurnos` | Permite crear nuevos turnos desde el panel admin |
+| `1` | `EditarTurnos` | Permite modificar el estado, horario y profesional de turnos existentes |
+| `2` | `CargarCobranzas` | Permite registrar pagos y movimientos en caja |
+| `3` | `VerTelefonoClientes` | Permite ver el teléfono de los clientes en la ficha de cliente |
+| `4` | `GestionarAjustes` | Permite acceder a la sección Ajustes del panel y modificar la configuración de la sucursal |
 
-> **Nota de persistencia**: el campo `Permisos` en la entidad `Usuario` es `List<PermisoSistema>` y se guardaba originalmente como `jsonb`. Fue migrado a tabla separada `usuario_permisos` para permitir queries eficientes. La migración correspondiente es `AddUsuarioPermisosTable`.
+### Tabla `usuario_permisos`
+
+```sql
+usuario_permisos
+  Id                   uuid  PK
+  UsuarioSucursalRolId uuid  FK → usuario_sucursal_roles.Id (CASCADE)
+  Permiso              int
+  UNIQUE (UsuarioSucursalRolId, Permiso)
+```
+
+> Los permisos son **por membresía**: el mismo profesional puede tener `AgendarTurnos` en la sucursal A y no tenerlo en la sucursal B.
 
 ---
 
@@ -57,7 +69,7 @@ export function tienePermiso(user: SessionUser | null, permiso: PermisoSistema):
 }
 ```
 
-**Regla clave**: `esSuperAdmin`, `esOwner` y rol `Administrativo` siempre devuelven `true` independientemente del permiso consultado. Solo para otros roles se verifica la lista de permisos individuales.
+**Regla clave**: `esSuperAdmin`, `esOwner` y rol `Administrativo` siempre devuelven `true` independientemente del permiso consultado. Los permisos en `SessionUser.permisos` corresponden a la sucursal activa en la sesión actual.
 
 ---
 
@@ -67,11 +79,11 @@ export function tienePermiso(user: SessionUser | null, permiso: PermisoSistema):
 
 El menú lateral filtra los ítems según el usuario:
 
-| Ítem de nav   | Condición de visibilidad                                              |
-|---------------|-----------------------------------------------------------------------|
-| Equipo        | `esAdmin` (Owner o Administrativo)                                    |
-| Ajustes       | `esAdmin` **o** `tienePermiso(user, 'GestionarAjustes')`              |
-| Resto         | Visible para todos los usuarios autenticados                          |
+| Ítem de nav | Condición de visibilidad |
+|-------------|--------------------------|
+| Equipo | `esAdmin` (Owner o Administrativo) |
+| Ajustes | `esAdmin` **o** `tienePermiso(user, 'GestionarAjustes')` |
+| Resto | Visible para todos los usuarios autenticados |
 
 ```typescript
 section.items.filter((item) => {
@@ -94,19 +106,11 @@ useEffect(() => {
 }, [tieneAcceso]);
 ```
 
-Esto protege contra acceso directo por URL (`/admin/ajustes`), no solo a través del nav.
-
-### Página Equipo — `Usuarios.tsx`
-
-Solo accesible para `esAdmin`. No usa permiso granular.
-
 ---
 
 ## Gestión de permisos desde el panel
 
 Los permisos se asignan en la sección **Equipo** (`/admin/usuarios`). Al crear o editar un usuario, el admin puede marcar/desmarcar cada permiso con checkboxes.
-
-El array de permisos disponibles (`TODOS_LOS_PERMISOS`) y sus etiquetas (`PERMISO_LABELS`) están definidos en `Usuarios.tsx`:
 
 ```typescript
 const PERMISO_LABELS: Record<PermisoSistema, string> = {
@@ -118,40 +122,40 @@ const PERMISO_LABELS: Record<PermisoSistema, string> = {
 };
 ```
 
-Al guardar, los permisos se envían como array de strings en `ActualizarUsuarioDto.permisos`.
+Al guardar, los permisos se envían como array de strings en `ActualizarUsuarioDto.permisos`. El backend elimina los permisos existentes del `UsuarioSucursalRol` y reinserta los nuevos.
 
 ---
 
 ## Endpoints REST
 
-### `PUT /api/usuarios/{id}`
+### `PUT /api/usuarios/{id}` — `id` es `UsuarioSucursalRol.Id`
 
-Acepta `permisos: PermisoSistema[]` en el body. El backend elimina los permisos existentes del usuario y reinserta los nuevos.
+Acepta `permisos: PermisoSistema[]` en el body. El backend reemplaza los permisos de esa membresía.
 
 ### `GET /api/usuarios/{sucursalId}`
 
-Devuelve los usuarios con su lista de permisos actual. El frontend los usa para inicializar los checkboxes al editar.
+Devuelve los usuarios con su lista de permisos actual (cargada desde `usuario_permisos` por `UsuarioSucursalRolId`).
 
 ---
 
 ## Escenarios de verificación
 
-| Rol          | `GestionarAjustes` asignado | Nav muestra "Ajustes" | Puede acceder a `/admin/ajustes` |
-|--------------|-----------------------------|-----------------------|----------------------------------|
-| Owner        | —                           | Sí                    | Sí                               |
-| Administrativo | —                         | Sí                    | Sí                               |
-| Profesional  | No                          | No                    | No (redirige a `/admin`)         |
-| Profesional  | Sí                          | Sí                    | Sí                               |
-| Caja         | No                          | No                    | No (redirige a `/admin`)         |
-| Caja         | Sí                          | Sí                    | Sí                               |
+| Rol | `GestionarAjustes` asignado | Nav muestra "Ajustes" | Puede acceder a `/admin/ajustes` |
+|-----|-----------------------------|-----------------------|----------------------------------|
+| Owner | — | Sí | Sí |
+| Administrativo | — | Sí | Sí |
+| Profesional | No | No | No (redirige a `/admin`) |
+| Profesional | Sí | Sí | Sí |
+| Caja | No | No | No (redirige a `/admin`) |
+| Caja | Sí | Sí | Sí |
 
 ---
 
 ## Extensión: agregar un nuevo permiso
 
-1. **Backend** — `src/Domain/Enums/PermisoSistema.cs`: agregar el nuevo valor al enum con el siguiente entero disponible.
+1. **Backend** — `src/Domain/Enums/PermisoSistema.cs`: agregar el nuevo valor con el siguiente entero disponible.
 2. **Frontend tipos** — `src/types/index.ts`: agregar el string literal al union type `PermisoSistema`.
 3. **Frontend UI** — `src/pages/admin/Usuarios.tsx`: agregar entrada en `PERMISO_LABELS` y `TODOS_LOS_PERMISOS`.
-4. **Frontend guards** — Agregar la verificación con `tienePermiso(user, 'NuevoPermiso')` en los componentes que deban restringirse.
+4. **Frontend guards** — Agregar `tienePermiso(user, 'NuevoPermiso')` en los componentes que deban restringirse.
 
-No se requiere migración de base de datos: los permisos nuevos simplemente no aparecerán en la tabla `usuario_permisos` hasta que se asignen.
+No se requiere migración de base de datos: los permisos nuevos simplemente no aparecerán en `usuario_permisos` hasta que se asignen manualmente.

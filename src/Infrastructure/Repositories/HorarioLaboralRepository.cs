@@ -11,26 +11,30 @@ public class HorarioLaboralRepository : IHorarioLaboralRepository
 
     public HorarioLaboralRepository(AppDbContext context) => _context = context;
 
+    /// <inheritdoc />
     public Task<List<HorarioLaboral>> GetByUsuarioIdAsync(Guid usuarioId) =>
         _context.HorariosLaborales
-            .Where(h => h.UsuarioId == usuarioId)
+            .Where(h => h.UsuarioSucursalRol.UsuarioId == usuarioId)
             .ToListAsync();
 
+    /// <inheritdoc />
     public async Task<Dictionary<Guid, List<HorarioLaboral>>> GetByUsuariosAsync(IEnumerable<Guid> usuarioIds)
     {
         var ids = usuarioIds.ToList();
         var lista = await _context.HorariosLaborales
-            .Where(h => ids.Contains(h.UsuarioId))
+            .Include(h => h.UsuarioSucursalRol)
+            .Where(h => ids.Contains(h.UsuarioSucursalRol.UsuarioId))
             .ToListAsync();
         return lista
-            .GroupBy(h => h.UsuarioId)
+            .GroupBy(h => h.UsuarioSucursalRol.UsuarioId)
             .ToDictionary(g => g.Key, g => g.ToList());
     }
 
-    public async Task ReplaceAsync(Guid usuarioId, IEnumerable<HorarioLaboral> nuevos)
+    /// <inheritdoc />
+    public async Task ReplaceAsync(Guid usuarioSucursalRolId, IEnumerable<HorarioLaboral> nuevos)
     {
         var existentes = await _context.HorariosLaborales
-            .Where(h => h.UsuarioId == usuarioId)
+            .Where(h => h.UsuarioSucursalRolId == usuarioSucursalRolId)
             .ToListAsync();
 
         _context.HorariosLaborales.RemoveRange(existentes);

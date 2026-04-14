@@ -56,6 +56,10 @@ public class TurnoConfiguration : IEntityTypeConfiguration<Turno>
             .HasMaxLength(200)
             .IsRequired(false);
 
+        builder.Property(t => t.MpCheckoutUrl)
+            .HasMaxLength(500)
+            .IsRequired(false);
+
         builder.Property(t => t.Recordatorio24hEnviado)
             .IsRequired()
             .HasDefaultValue(false);

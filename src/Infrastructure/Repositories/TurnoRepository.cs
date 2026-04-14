@@ -120,6 +120,27 @@ public class TurnoRepository : GenericRepository<Turno>, ITurnoRepository
             .Where(t => t.Estado == EstadoTurno.PendientePago && t.FechaCreacion < limite)
             .ToListAsync();
 
+    public async Task<bool> TieneTurnosFuturosActivosAsync(Guid profesionalId)
+    {
+        var ahora = DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Unspecified);
+        return await _dbSet.AnyAsync(t =>
+            t.ProfesionalId == profesionalId &&
+            t.FechaHoraInicio > ahora &&
+            (t.Estado == EstadoTurno.Pendiente ||
+             t.Estado == EstadoTurno.Confirmado ||
+             t.Estado == EstadoTurno.PendientePago));
+    }
+
+    public async Task<int> ContarPorSucursalEnMesAsync(Guid sucursalId, int anio, int mes)
+        => await _context.Turnos
+            .Where(t => t.SucursalId == sucursalId
+                     && t.FechaHoraInicio.Year == anio
+                     && t.FechaHoraInicio.Month == mes
+                     && t.Estado != EstadoTurno.CanceladoStaff
+                     && t.Estado != EstadoTurno.CanceladoCliente
+                     && t.Estado != EstadoTurno.NoShow)
+            .CountAsync();
+
     public async Task<IEnumerable<Turno>> GetParaRecordatoriosAsync(
         DateTime ahora, DateTime limite24h, DateTime limite3h)
     {

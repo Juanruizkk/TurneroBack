@@ -22,7 +22,8 @@ public class SucursalRepository : GenericRepository<Sucursal>, ISucursalReposito
     public async Task<IEnumerable<Sucursal>> GetAllConOwnerAsync()
     {
         return await _dbSet
-            .Include(s => s.Usuarios.Where(u => u.EsOwner))
+            .Include(s => s.UsuarioSucursalRoles.Where(u => u.EsOwner))
+                .ThenInclude(u => u.Usuario)
             .OrderByDescending(s => s.FechaCreacion)
             .ToListAsync();
     }
@@ -30,7 +31,8 @@ public class SucursalRepository : GenericRepository<Sucursal>, ISucursalReposito
     public async Task<Sucursal?> GetByIdConOwnerAsync(Guid id)
     {
         return await _dbSet
-            .Include(s => s.Usuarios.Where(u => u.EsOwner))
+            .Include(s => s.UsuarioSucursalRoles.Where(u => u.EsOwner))
+                .ThenInclude(u => u.Usuario)
             .FirstOrDefaultAsync(s => s.Id == id);
     }
 
@@ -39,5 +41,22 @@ public class SucursalRepository : GenericRepository<Sucursal>, ISucursalReposito
         return await _dbSet
             .Include(s => s.ConfiguracionSucursal)
             .FirstOrDefaultAsync(s => s.Id == id);
+    }
+
+    public async Task<Sucursal?> GetBySlugAsync(string slug)
+    {
+        return await _dbSet
+            .Include(s => s.ConfiguracionSucursal)
+            .FirstOrDefaultAsync(s => s.Slug == slug.ToLowerInvariant());
+    }
+
+    public async Task<bool> SlugExisteAsync(string slug, Guid? excluirSucursalId = null)
+    {
+        var query = _dbSet.Where(s => s.Slug == slug.ToLowerInvariant());
+
+        if (excluirSucursalId.HasValue)
+            query = query.Where(s => s.Id != excluirSucursalId.Value);
+
+        return await query.AnyAsync();
     }
 }

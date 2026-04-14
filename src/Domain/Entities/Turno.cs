@@ -19,6 +19,7 @@ public class Turno
     public decimal? MontoSena { get; set; }
     public decimal TotalCobrado { get; set; }
     public string? MpPreferenceId { get; set; }
+    public string? MpCheckoutUrl  { get; set; }
 
     public bool Recordatorio24hEnviado { get; set; } = false;
     public bool Recordatorio3hEnviado  { get; set; } = false;

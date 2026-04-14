@@ -25,8 +25,8 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             .IsRequired()
             .HasMaxLength(200);
 
-        // Email único por sucursal
-        builder.HasIndex(u => new { u.SucursalId, u.Email }).IsUnique();
+        // Email único globalmente
+        builder.HasIndex(u => u.Email).IsUnique();
 
         builder.Property(u => u.Telefono)
             .IsRequired()
@@ -36,29 +36,9 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             .IsRequired()
             .HasMaxLength(500);
 
-        builder.Property(u => u.Rol)
+        builder.Property(u => u.FechaCreacion)
             .IsRequired()
-            .HasConversion<int>();
-
-        builder.Property(u => u.Estado)
-            .IsRequired()
-            .HasConversion<int>();
-
-        builder.Property(u => u.EsOwner)
-            .IsRequired()
-            .HasDefaultValue(false);
-
-        builder.Property(u => u.InvitacionToken)
-            .HasMaxLength(100)
-            .IsRequired(false);
-
-        builder.Property(u => u.FechaExpiracionInvitacion)
-            .HasColumnType("timestamptz")
-            .IsRequired(false);
-
-        builder.HasIndex(u => u.InvitacionToken)
-            .IsUnique()
-            .HasFilter("\"InvitacionToken\" IS NOT NULL");
+            .HasColumnType("timestamptz");
 
         builder.Property(u => u.TokenRecuperacion)
             .HasMaxLength(100)
@@ -72,19 +52,18 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             .IsUnique()
             .HasFilter("\"TokenRecuperacion\" IS NOT NULL");
 
+        builder.Property(u => u.SeleccionToken)
+            .HasMaxLength(100)
+            .IsRequired(false);
+
+        builder.Property(u => u.SeleccionTokenExpiracion)
+            .HasColumnType("timestamptz")
+            .IsRequired(false);
+
+        builder.HasIndex(u => u.SeleccionToken)
+            .HasFilter("\"SeleccionToken\" IS NOT NULL");
+
         // ─── Relaciones ──────────────────────────────────────────────────────
-
-        // Permisos: la configuración completa vive en UsuarioPermisoConfiguration.
-        // EF la aplica automáticamente vía ApplyConfigurationsFromAssembly.
-        builder.HasMany(u => u.Permisos)
-            .WithOne(p => p.Usuario)
-            .HasForeignKey(p => p.UsuarioId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(u => u.HorariosLaborales)
-            .WithOne(h => h.Usuario)
-            .HasForeignKey(h => h.UsuarioId)
-            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasMany(u => u.TurnosComoProfesional)
             .WithOne(t => t.Profesional)

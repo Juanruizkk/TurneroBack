@@ -18,6 +18,7 @@ public class TurnoServiceCreateTests
     private readonly Mock<ISucursalRepository>        _sucursalRepo     = new();
     private readonly Mock<IEmailService>              _emailService     = new();
     private readonly Mock<IComentarioTurnoRepository> _comentarioRepo   = new();
+    private readonly Mock<ISuscripcionRepository>     _suscripcionRepo  = new();
     private readonly TurnoService                     _sut;
 
     public TurnoServiceCreateTests()
@@ -29,7 +30,9 @@ public class TurnoServiceCreateTests
             _sucursalRepo.Object,
             _emailService.Object,
             _comentarioRepo.Object,
-            "http://localhost:3000");
+            "http://localhost:3000",
+            suscripcionRepo: _suscripcionRepo.Object,
+            suscripcionGuard: new SuscripcionGuard(_suscripcionRepo.Object));
     }
 
     // ── Setup helpers ──────────────────────────────────────────────────────────
@@ -39,6 +42,10 @@ public class TurnoServiceCreateTests
     {
         _servicioRepo.Setup(r => r.GetByIdAsync(servicio.Id)).ReturnsAsync(servicio);
         _clienteRepo.Setup(r  => r.GetByIdAsync(cliente.Id)).ReturnsAsync(cliente);
+
+        // Sin suscripción → sin restricción de plan
+        _suscripcionRepo.Setup(r => r.GetBySucursalAsync(It.IsAny<Guid>()))
+            .ReturnsAsync((SucursalSuscripcion?)null);
 
         _turnoRepo.Setup(r => r.ExisteConflictoHorarioAsync(
                 It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), null))
@@ -166,7 +173,8 @@ public class TurnoServiceCreateTests
             tipoSena: TipoSena.Fija, valorSena: 2000m);
         var cliente  = TurnoTestFactory.CrearCliente();
         var sucursal = TurnoTestFactory.CrearSucursalConConfig();
-        var dto      = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id);
+        var dto      = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id,
+            origen: OrigenTurno.Web);
 
         SetupCrearOk(servicio, cliente, sucursal);
 
@@ -183,7 +191,8 @@ public class TurnoServiceCreateTests
             tipoSena: TipoSena.Porcentaje, valorSena: 30m);
         var cliente  = TurnoTestFactory.CrearCliente();
         var sucursal = TurnoTestFactory.CrearSucursalConConfig();
-        var dto      = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id);
+        var dto      = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id,
+            origen: OrigenTurno.Web);
 
         SetupCrearOk(servicio, cliente, sucursal);
 
@@ -381,5 +390,84 @@ public class TurnoServiceCreateTests
 
         await _sut.Invoking(s => s.CreateAsync(dto))
             .Should().NotThrowAsync();
+    }
+
+    // ── Límite de turnos por plan ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Create_SinSuscripcion_NoValidaLimiteTurnos()
+    {
+        var servicio = TurnoTestFactory.CrearServicio();
+        var cliente  = TurnoTestFactory.CrearCliente();
+        var sucursal = TurnoTestFactory.CrearSucursalConConfig();
+        var dto      = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id);
+
+        SetupCrearOk(servicio, cliente, sucursal);
+        // _suscripcionRepo ya devuelve null desde SetupCrearOk → sin restricción
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Create_MaxTurnosMesNull_Ilimitado_Permite()
+    {
+        var plan        = SuscripcionTestFactory.CrearPlan(maxTurnosMes: null);
+        var suscripcion = SuscripcionTestFactory.CrearSuscripcion(plan: plan);
+        var servicio    = TurnoTestFactory.CrearServicio();
+        var cliente     = TurnoTestFactory.CrearCliente();
+        var sucursal    = TurnoTestFactory.CrearSucursalConConfig();
+        var dto         = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id);
+
+        SetupCrearOk(servicio, cliente, sucursal);
+        _suscripcionRepo.Setup(r => r.GetBySucursalAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(suscripcion);
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Create_DebajoDeLimiteTurnos_Permite()
+    {
+        var plan        = SuscripcionTestFactory.CrearPlan(maxTurnosMes: 50);
+        var suscripcion = SuscripcionTestFactory.CrearSuscripcion(plan: plan);
+        var servicio    = TurnoTestFactory.CrearServicio();
+        var cliente     = TurnoTestFactory.CrearCliente();
+        var sucursal    = TurnoTestFactory.CrearSucursalConConfig();
+        var dto         = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id);
+
+        SetupCrearOk(servicio, cliente, sucursal);
+        _suscripcionRepo.Setup(r => r.GetBySucursalAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(suscripcion);
+        _turnoRepo.Setup(r => r.ContarPorSucursalEnMesAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(49); // 49 < 50 → permite
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Create_LimiteTurnosSuperado_LanzaException()
+    {
+        var plan        = SuscripcionTestFactory.CrearPlan(maxTurnosMes: 50, nombre: "Básico");
+        var suscripcion = SuscripcionTestFactory.CrearSuscripcion(plan: plan);
+        var servicio    = TurnoTestFactory.CrearServicio();
+        var cliente     = TurnoTestFactory.CrearCliente();
+        var sucursal    = TurnoTestFactory.CrearSucursalConConfig();
+        var dto         = TurnoTestFactory.CrearDto(servicioId: servicio.Id, clienteId: cliente.Id);
+
+        SetupCrearOk(servicio, cliente, sucursal);
+        _suscripcionRepo.Setup(r => r.GetBySucursalAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(suscripcion);
+        _turnoRepo.Setup(r => r.ContarPorSucursalEnMesAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(50); // 50 >= 50 → bloquea
+
+        await _sut.Invoking(s => s.CreateAsync(dto))
+            .Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Básico*");
     }
 }

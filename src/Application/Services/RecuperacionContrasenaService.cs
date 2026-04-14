@@ -25,8 +25,7 @@ public class RecuperacionContrasenaService
     public async Task SolicitarAsync(string email)
     {
         var emailNorm = email.ToLowerInvariant().Trim();
-        var usuarios  = await _usuarioRepo.GetByEmailGlobalAsync(emailNorm);
-        var usuario   = usuarios.FirstOrDefault();
+        var usuario = await _usuarioRepo.GetByEmailGlobalAsync(emailNorm);
 
         if (usuario is null) return; // silencioso — no revelar si existe
 
@@ -66,8 +65,7 @@ public class RecuperacionContrasenaService
             throw new InvalidOperationException(
                 "El enlace de recuperación venció. Solicitá uno nuevo desde la pantalla de inicio de sesión.");
 
-        // TODO: reemplazar por BCrypt.HashPassword cuando se implemente hashing
-        usuario.PasswordHash                    = nuevaContrasena;
+        usuario.PasswordHash                    = BCrypt.Net.BCrypt.HashPassword(nuevaContrasena);
         usuario.TokenRecuperacion               = null;
         usuario.TokenRecuperacionExpiracion     = null;
 
