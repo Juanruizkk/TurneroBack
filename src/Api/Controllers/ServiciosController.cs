@@ -62,8 +62,15 @@ public class ServiciosController : ControllerBase
         try { await _guard.VerificarActivaAsync(dto.SucursalId); }
         catch (SuscripcionVencidaException ex) { return StatusCode(402, new { message = ex.Message }); }
 
-        var servicio = await _servicioService.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = servicio.Id }, servicio);
+        try
+        {
+            var servicio = await _servicioService.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = servicio.Id }, servicio);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>

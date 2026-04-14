@@ -21,13 +21,13 @@ public class ActualizarAjustesDto
     public string Moneda { get; set; } = "ARS";
 
     // ─── Contacto y ubicación ─────────────────────────────────────────────────
-    [Required, MaxLength(500)]
+    [Required(AllowEmptyStrings = true), MaxLength(500)]
     public string Direccion { get; set; } = string.Empty;
 
-    [Required, MaxLength(50)]
+    [Required(AllowEmptyStrings = true), MaxLength(50)]
     public string Telefono { get; set; } = string.Empty;
 
-    [Required, MaxLength(200)]
+    [Required(AllowEmptyStrings = true), MaxLength(200)]
     public string Email { get; set; } = string.Empty;
 
     // ─── Horarios de atención ─────────────────────────────────────────────────

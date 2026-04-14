@@ -1,16 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using TurneroApp.Domain.Entities;
+using TurneroApp.Infrastructure.MultiTenant;
 
 namespace TurneroApp.Infrastructure.Data;
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    private readonly ITenantContext? _tenantContext;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext? tenantContext = null)
+        : base(options)
     {
+        _tenantContext = tenantContext;
     }
 
     public DbSet<Sucursal> Sucursales => Set<Sucursal>();
     public DbSet<Usuario> Usuarios => Set<Usuario>();
+    public DbSet<UsuarioSucursalRol> UsuarioSucursalRoles => Set<UsuarioSucursalRol>();
     public DbSet<UsuarioPermiso> UsuariosPermisos => Set<UsuarioPermiso>();
     public DbSet<HorarioLaboral> HorariosLaborales => Set<HorarioLaboral>();
     public DbSet<UsuarioServicio> UsuarioServicios => Set<UsuarioServicio>();
@@ -26,9 +32,55 @@ public class AppDbContext : DbContext
     public DbSet<ConfiguracionSucursal> ConfiguracionesSucursal => Set<ConfiguracionSucursal>();
     public DbSet<CajaSesion> CajaSesiones => Set<CajaSesion>();
 
+    // ─── Suscripciones ───────────────────────────────────────────────────────
+    public DbSet<Plan> Planes => Set<Plan>();
+    public DbSet<SucursalSuscripcion> SucursalSuscripciones => Set<SucursalSuscripcion>();
+
+    // ─── Mercado Pago OAuth ───────────────────────────────────────────────────
+    public DbSet<SucursalMercadoPago> SucursalMercadoPagos => Set<SucursalMercadoPago>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // ─── Global Query Filters (multi-tenant) ─────────────────────────────
+        // El filtro solo se activa cuando hay un SucursalId en el contexto JWT.
+        // SuperAdmin y endpoints anónimos (register, booking público) no tienen
+        // SucursalId en el token, por lo que no se filtran.
+        modelBuilder.Entity<Servicio>()
+            .HasQueryFilter(e => _tenantContext == null
+                || !_tenantContext.SucursalId.HasValue
+                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+
+        modelBuilder.Entity<Cliente>()
+            .HasQueryFilter(e => _tenantContext == null
+                || !_tenantContext.SucursalId.HasValue
+                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+
+        modelBuilder.Entity<Turno>()
+            .HasQueryFilter(e => _tenantContext == null
+                || !_tenantContext.SucursalId.HasValue
+                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+
+        modelBuilder.Entity<Caja>()
+            .HasQueryFilter(e => _tenantContext == null
+                || !_tenantContext.SucursalId.HasValue
+                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+
+        modelBuilder.Entity<BloqueoAgenda>()
+            .HasQueryFilter(e => _tenantContext == null
+                || !_tenantContext.SucursalId.HasValue
+                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+
+        modelBuilder.Entity<UsuarioSucursalRol>()
+            .HasQueryFilter(e => _tenantContext == null
+                || !_tenantContext.SucursalId.HasValue
+                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+
+        modelBuilder.Entity<SucursalSuscripcion>()
+            .HasQueryFilter(e => _tenantContext == null
+                || !_tenantContext.SucursalId.HasValue
+                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
     }
 }

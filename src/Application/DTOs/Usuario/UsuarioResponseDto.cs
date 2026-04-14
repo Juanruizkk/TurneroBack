@@ -4,7 +4,10 @@ namespace TurneroApp.Application.DTOs.Usuario;
 
 public class UsuarioResponseDto
 {
+    /// <summary>UsuarioSucursalRol.Id — usar para endpoints de gestión de usuarios.</summary>
     public Guid Id { get; set; }
+    /// <summary>Usuario.Id — usar como ProfesionalId al crear turnos y filtrar slots.</summary>
+    public Guid UsuarioId { get; set; }
     public Guid SucursalId { get; set; }
     public string Nombre { get; set; } = string.Empty;
     public string Apellido { get; set; } = string.Empty;
@@ -13,6 +16,7 @@ public class UsuarioResponseDto
     public string Telefono { get; set; } = string.Empty;
     public RolUsuario Rol { get; set; }
     public EstadoUsuario Estado { get; set; }
+    public bool EsOwner { get; set; }
 
     /// <summary>
     /// Lista de permisos efectivos del usuario.
@@ -24,4 +28,10 @@ public class UsuarioResponseDto
 
     /// <summary>IDs de servicios que puede realizar. Vacío = todos los servicios.</summary>
     public List<Guid> ServiciosIds { get; set; } = new();
+
+    /// <summary>
+    /// Link de invitación generado al crear o reenviar la invitación.
+    /// Solo presente en la respuesta de creación o reenvío, no en listados.
+    /// </summary>
+    public string? InvitacionLink { get; set; }
 }

@@ -12,4 +12,12 @@ public sealed class MercadoPagoOptions
 
     /// <summary>URL pública del webhook en este backend.</summary>
     public string NotificationUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Secreto del webhook de MP (campo "Secreto" en la configuración de notificaciones del panel de desarrolladores).
+    /// Se usa para validar la firma HMAC-SHA256 del header x-signature.
+    /// Si está vacío, la validación de firma se omite (modo desarrollo).
+    /// </summary>
+    public string WebhookSecret { get; set; } = string.Empty;
+
 }

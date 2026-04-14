@@ -4,33 +4,17 @@ namespace TurneroApp.Application.Interfaces;
 
 public interface IUsuarioRepository : IGenericRepository<Usuario>
 {
-    /// <summary>
-    /// Obtiene un usuario por id incluyendo su colección de permisos.
-    /// </summary>
-    Task<Usuario?> GetByIdConPermisosAsync(Guid id);
+    /// <summary>Busca un usuario por email (global — un único registro por email).</summary>
+    Task<Usuario?> GetByEmailAsync(string email);
 
     /// <summary>
-    /// Lista todos los usuarios de una sucursal, incluyendo sus permisos.
-    /// Ordena por Apellido, Nombre.
+    /// Igual que GetByEmailAsync. Mantenido por compatibilidad con flujos existentes.
     /// </summary>
-    Task<IEnumerable<Usuario>> GetBySucursalAsync(Guid sucursalId);
-
-    /// <summary>
-    /// Busca un usuario por email dentro de una sucursal.
-    /// Útil para validar unicidad antes de crear o actualizar.
-    /// </summary>
-    Task<Usuario?> GetByEmailAsync(Guid sucursalId, string email);
-
-    /// <summary>
-    /// Busca usuarios por email en todas las sucursales (para login).
-    /// Incluye permisos. Si hay varios (owner multi-sucursal), devuelve todos ordenados:
-    /// activos primero, luego owners.
-    /// </summary>
-    Task<IEnumerable<Usuario>> GetByEmailGlobalAsync(string email);
-
-    /// <summary>Busca un usuario por su token de invitación.</summary>
-    Task<Usuario?> GetByInvitacionTokenAsync(string token);
+    Task<Usuario?> GetByEmailGlobalAsync(string email);
 
     /// <summary>Busca un usuario por su token de recuperación de contraseña.</summary>
     Task<Usuario?> GetByTokenRecuperacionAsync(string token);
+
+    /// <summary>Busca el usuario que tenga un SeleccionToken activo.</summary>
+    Task<Usuario?> GetBySeleccionTokenAsync(string token);
 }

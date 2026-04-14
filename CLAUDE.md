@@ -51,6 +51,7 @@ Domain → Application → Infrastructure
 - `IGenericRepository<T>` provee `GetByIdAsync`, `GetAllAsync`, `AddAsync`, `Update`, `Delete`, `SaveChangesAsync`.
 - Repositorios específicos extienden el genérico con queries propias (ej: `GetBySucursalAsync`, `ExisteConflictoHorarioAsync`).
 - Interfaces en `Application/Interfaces`, implementaciones en `Infrastructure/Repositories`.
+- `IUsuarioSucursalRolRepository` es el repositorio principal para acceder a membresías de usuarios. Usar este en lugar de `IUsuarioRepository` cuando se trabaja con datos de rol/estado/permisos.
 
 ### Servicios
 - Un servicio por agregado. Reciben repositorios por constructor.
@@ -68,16 +69,32 @@ Al agregar un nuevo recurso, registrar en este orden en `Program.cs`:
 1. `builder.Services.AddScoped<INuevoRepository, NuevoRepository>();`
 2. `builder.Services.AddScoped<NuevoService>();`
 
+### IDs en endpoints de usuarios
+Los endpoints `GET|PUT|DELETE /api/usuarios/{id}` usan `UsuarioSucursalRol.Id`, no `Usuario.Id`. El `UsuarioResponseDto.Id` corresponde al USR. Tener esto en cuenta al construir o consumir esos endpoints.
+
 ## Modelo de dominio
 
-**Eje central:** `Sucursal`. Todo (usuarios, servicios, clientes, turnos, caja) pertenece a una sucursal y es independiente entre sucursales.
+**Eje central:** `Sucursal`. Todo (servicios, clientes, turnos, caja) pertenece a una sucursal y es independiente entre sucursales.
+
+**Modelo de usuarios — estilo Slack:**
+
+```
+Usuario (identidad global)       ← Email único en toda la plataforma
+  └── UsuarioSucursalRol         ← membresía por sucursal (Rol, EsOwner, Estado)
+        ├── UsuarioPermiso       ← permisos granulares de ESA membresía
+        ├── HorarioLaboral       ← horarios de ESA membresía
+        └── UsuarioServicio      ← servicios asignados en ESA membresía
+```
+
+Un mismo profesional puede pertenecer a varias sucursales con roles y permisos distintos. Ver `docs/Arquitecture/usuario-sucursal-rol.md` para el detalle completo.
 
 **Relaciones clave:**
 - `Sucursal` 1→1 `Caja`, 1→1 `ConfiguracionSucursal`
-- `Turno` referencia `Cliente`, `Servicio`, `Usuario` (como `Profesional`), y `Sucursal`
+- `Sucursal` 1→N `UsuarioSucursalRol` (membresías)
+- `Turno` referencia `Cliente`, `Servicio`, `Usuario` (ProfesionalId → Usuario.Id), y `Sucursal`
 - `MovimientoCaja` → puede estar asociado a un `Turno` (opcional)
 - `PagoTurno` vincula `Turno` ↔ `MovimientoCaja`
-- `Usuario.Permisos` es `List<PermisoSistema>` guardado como `jsonb`
+- `UsuarioPermiso` FK a `UsuarioSucursalRol.Id` (no a `Usuario.Id`)
 
 **Lógica de negocio en TurnoService:**
 - `FechaHoraFin` se calcula automáticamente: `FechaHoraInicio + Servicio.DuracionAgendaMin`

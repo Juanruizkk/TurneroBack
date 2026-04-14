@@ -9,13 +9,15 @@ namespace TurneroApp.Application.Services;
 
 public sealed class PagoTurnoService : IPagoTurnoService
 {
-    private readonly ITurnoRepository          _turnoRepo;
-    private readonly ICajaRepository           _cajaRepo;
-    private readonly ISucursalRepository       _sucursalRepo;
-    private readonly IMercadoPagoGateway       _mpGateway;
-    private readonly IEmailService             _emailService;
-    private readonly ILogger<PagoTurnoService> _logger;
-    private readonly string                    _frontendUrl;
+    private readonly ITurnoRepository           _turnoRepo;
+    private readonly ICajaRepository            _cajaRepo;
+    private readonly ISucursalRepository        _sucursalRepo;
+    private readonly IMercadoPagoGateway        _mpGateway;
+    private readonly IMercadoPagoOAuthService   _oauthService;
+    private readonly IEmailService              _emailService;
+    private readonly ILogger<PagoTurnoService>  _logger;
+    private readonly string                     _frontendUrl;
+    private readonly string                     _backendUrl;
     private readonly ITurnoNotificacionService? _notificaciones;
 
     public PagoTurnoService(
@@ -23,18 +25,22 @@ public sealed class PagoTurnoService : IPagoTurnoService
         ICajaRepository            cajaRepo,
         ISucursalRepository        sucursalRepo,
         IMercadoPagoGateway        mpGateway,
+        IMercadoPagoOAuthService   oauthService,
         IEmailService              emailService,
         ILogger<PagoTurnoService>  logger,
         string                     frontendUrl,
+        string                     backendUrl,
         ITurnoNotificacionService? notificaciones = null)
     {
         _turnoRepo      = turnoRepo;
         _cajaRepo       = cajaRepo;
         _sucursalRepo   = sucursalRepo;
         _mpGateway      = mpGateway;
+        _oauthService   = oauthService;
         _emailService   = emailService;
         _logger         = logger;
         _frontendUrl    = frontendUrl;
+        _backendUrl     = backendUrl;
         _notificaciones = notificaciones;
     }
 
@@ -48,33 +54,75 @@ public sealed class PagoTurnoService : IPagoTurnoService
             throw new InvalidOperationException(
                 $"El turno no está en estado PendientePago (estado actual: {turno.Estado}).");
 
-        // Si ya tiene una preferencia generada, la reutilizamos (idempotencia)
-        if (!string.IsNullOrEmpty(turno.MpPreferenceId))
-            return turno.MpPreferenceId;
+        // Idempotencia: si ya existe preferencia y URL, reutilizar sin llamar a MP
+        if (!string.IsNullOrEmpty(turno.MpPreferenceId) && !string.IsNullOrEmpty(turno.MpCheckoutUrl))
+            return turno.MpCheckoutUrl;
+
+        var accessToken = await _oauthService.ObtenerAccessTokenVigenteAsync(turno.SucursalId);
 
         var monto  = turno.MontoSena > 0 ? turno.MontoSena!.Value : turno.PrecioServicio;
         var titulo = $"Seña — {turno.Servicio?.Nombre ?? "Servicio"}";
 
-        var preferenceId = await _mpGateway.CrearPreferenciaAsync(
+        var notificationUrl = $"{_backendUrl.TrimEnd('/')}/api/webhooks/mercadopago/{turno.SucursalId}";
+
+        var (preferenceId, checkoutUrl) = await _mpGateway.CrearPreferenciaAsync(
             turnoId.ToString(),
             titulo,
             monto,
-            _frontendUrl);
+            _frontendUrl,
+            accessToken,
+            notificationUrl);
 
         turno.MpPreferenceId = preferenceId;
+        turno.MpCheckoutUrl  = checkoutUrl;
         _turnoRepo.Update(turno);
         await _turnoRepo.SaveChangesAsync();
 
-        return preferenceId;
+        return checkoutUrl;
     }
 
     /// <inheritdoc/>
-    public async Task ProcesarNotificacionPagoAsync(long paymentId)
+    public async Task ConfirmarPagoDesdeRedirectAsync(long paymentId, Guid turnoId)
+    {
+        var turno = await _turnoRepo.GetByIdConRelacionesAsync(turnoId)
+            ?? throw new InvalidOperationException($"Turno {turnoId} no encontrado.");
+
+        await ProcesarNotificacionPagoAsync(paymentId, turno.SucursalId);
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> VerificarPagoAsync(Guid turnoId)
+    {
+        var turno = await _turnoRepo.GetByIdConRelacionesAsync(turnoId)
+            ?? throw new InvalidOperationException($"Turno {turnoId} no encontrado.");
+
+        if (turno.Estado == EstadoTurno.Confirmado)
+        {
+            _logger.LogInformation("Turno {TurnoId} ya está Confirmado. VerificarPago ignorado.", turnoId);
+            return true;
+        }
+
+        var accessToken = await _oauthService.ObtenerAccessTokenVigenteAsync(turno.SucursalId);
+        var pago = await _mpGateway.BuscarPagoPorReferenciaAsync(turnoId.ToString(), accessToken);
+
+        if (pago is null)
+        {
+            _logger.LogInformation("No se encontró pago aprobado para turno {TurnoId}.", turnoId);
+            return false;
+        }
+
+        await ProcesarNotificacionPagoAsync(pago.PaymentId, turno.SucursalId);
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public async Task ProcesarNotificacionPagoAsync(long paymentId, Guid sucursalId)
     {
         PaymentDetailsDto pago;
         try
         {
-            pago = await _mpGateway.ObtenerDetallesPagoAsync(paymentId);
+            var accessToken = await _oauthService.ObtenerAccessTokenVigenteAsync(sucursalId);
+            pago = await _mpGateway.ObtenerDetallesPagoAsync(paymentId, accessToken);
         }
         catch (Exception ex)
         {
@@ -96,6 +144,16 @@ public sealed class PagoTurnoService : IPagoTurnoService
         if (turno is null)
         {
             _logger.LogWarning("Turno {TurnoId} no encontrado para pago {PaymentId}.", turnoId, paymentId);
+            return;
+        }
+
+        // Seguridad: validar que el turno pertenece a la sucursal del webhook
+        if (turno.SucursalId != sucursalId)
+        {
+            _logger.LogWarning(
+                "Mismatch de sucursal para PaymentId={PaymentId}. " +
+                "Webhook sucursalId={WebhookSucursalId}, turno sucursalId={TurnoSucursalId}",
+                paymentId, sucursalId, turno.SucursalId);
             return;
         }
 
@@ -122,6 +180,18 @@ public sealed class PagoTurnoService : IPagoTurnoService
         if (turno.Estado == EstadoTurno.Confirmado)
         {
             _logger.LogInformation("Turno {TurnoId} ya estaba Confirmado. Webhook ignorado.", turnoId);
+            return;
+        }
+
+        // Seguridad: validar que el monto cobrado coincide con el esperado
+        var montoEsperado = turno.MontoSena > 0 ? turno.MontoSena!.Value : turno.PrecioServicio;
+        var esperado = decimal.Round(montoEsperado, 2);
+        var recibido = decimal.Round(pago.Amount, 2);
+        if (esperado != recibido)
+        {
+            _logger.LogWarning(
+                "Monto inesperado para turno {TurnoId}. Esperado={Esperado}, Recibido={Recibido}. Pago {PaymentId} ignorado.",
+                turnoId, esperado, recibido, paymentId);
             return;
         }
 
@@ -200,6 +270,9 @@ public sealed class PagoTurnoService : IPagoTurnoService
             }
             catch { /* SignalR es no-crítico */ }
         }
+
+        _logger.LogInformation(
+            "Turno {TurnoId} confirmado via Mercado Pago (PaymentId: {PaymentId}).", turnoId, paymentId);
 
         // Enviar email de confirmación al cliente
         var clienteEmail = turno.Cliente?.Email;

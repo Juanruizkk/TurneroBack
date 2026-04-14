@@ -151,22 +151,28 @@ Migración: `AddFechaCreacionToTurnos`
 
 ---
 
-### 4.2 `Turno` — nuevo campo `MpPreferenceId`
+### 4.2 `Turno` — nuevos campos `MpPreferenceId` y `MpCheckoutUrl`
 
 ```csharp
 // Domain/Entities/Turno.cs
 public string? MpPreferenceId { get; set; }
+public string? MpCheckoutUrl  { get; set; }
 ```
 
-| Propiedad       | Tipo      | Descripción                                                                  |
-|-----------------|-----------|------------------------------------------------------------------------------|
-| `MpPreferenceId`| `string?` | ID de la preferencia creada en MP. Solo presente en turnos `PendientePago`. Se persiste para reutilización (idempotencia). |
+| Propiedad       | Tipo      | Descripción |
+|-----------------|-----------|-------------|
+| `MpPreferenceId`| `string?` | ID de la preferencia creada en MP. Solo presente en turnos `PendientePago`. |
+| `MpCheckoutUrl` | `string?` | URL de checkout devuelta por MP (sandbox o producción según el token). Se persiste para reutilizar la misma URL sin crear una preferencia nueva (idempotencia). |
 
 Configuración en `TurnoConfiguration.cs`:
 
 ```csharp
 builder.Property(t => t.MpPreferenceId)
     .HasMaxLength(200)
+    .IsRequired(false);
+
+builder.Property(t => t.MpCheckoutUrl)
+    .HasMaxLength(500)
     .IsRequired(false);
 ```
 
@@ -273,11 +279,11 @@ Sin autenticación — el cliente lo llama desde el booking público.
 
 1. `PagosController` → `PagoTurnoService.GenerarLinkDePagoAsync(turnoId)`.
 2. Verifica que `turno.Estado == PendientePago` (lanza `InvalidOperationException` si no).
-3. Si `turno.MpPreferenceId` ya existe, lo retorna directamente (idempotencia).
+3. Si `turno.MpPreferenceId` y `turno.MpCheckoutUrl` ya existen, retorna `MpCheckoutUrl` directamente sin llamar a MP (idempotencia: el frontend puede llamar múltiples veces sin crear preferencias duplicadas).
 4. Calcula el monto: `turno.MontoSena > 0 ? MontoSena : PrecioServicio`.
 5. Llama a `MercadoPagoGateway.CrearPreferenciaAsync(turnoId, titulo, monto, frontendUrl)`.
-6. Persiste `turno.MpPreferenceId = preferenceId`.
-7. Retorna `{ preferenceId }`.
+6. Persiste `turno.MpPreferenceId = preferenceId` y `turno.MpCheckoutUrl = checkoutUrl`.
+7. Retorna la `checkoutUrl`.
 
 El frontend usa el `preferenceId` para redirigir al cliente a:
 ```
@@ -316,17 +322,21 @@ El controller maneja ambos formatos y siempre responde `200 OK` para que MP no r
 1.  Consulta detalles del pago a MP (GET /v1/payments/{paymentId})
 2.  Parsea ExternalReference como Guid → turnoId
 3.  Carga turno con relaciones
-4.  Si status == "rejected" o "cancelled" y turno.Estado == PendientePago
-      → turno.Estado = CanceladoCliente, persiste y return
-5.  Si status != "approved" → log informativo + return (ej: "pending")
-6.  Idempotencia: si turno.Estado == Confirmado → return
-7.  Actualiza turno: Estado = Confirmado, TotalCobrado += pago.Amount
-8.  Obtiene Caja de la sucursal
-9.  Si no hay Caja → confirma turno de todas formas (sin movimiento de caja), log error
-10. Crea MovimientoCaja (UsuarioId = null, MedioPago = MercadoPago)
-11. Crea PagoTurno (Concepto = Sena)
-12. RegistrarMovimientoTransaccionalAsync → transacción atómica
-13. Si el cliente tiene email → envía email de confirmación de turno
+4.  Seguridad: valida que turno.SucursalId == sucursalId recibido
+      → mismatch: LogWarning + return (previene que un paymentId real sea procesado con sucursalId inventado)
+5.  Si status == "rejected" o "cancelled" y turno.Estado == PendientePago
+      → turno.Estado = PagoRechazado, persiste y return
+6.  Si status != "approved" → log informativo + return (ej: "pending")
+7.  Idempotencia: si turno.Estado == Confirmado → return
+8.  Seguridad: valida que pago.Amount == montoEsperado (MontoSena > 0 ? MontoSena : PrecioServicio)
+      → mismatch: LogWarning + return (previene confirmar si MP cobró un monto incorrecto)
+9.  Actualiza turno: Estado = Confirmado, TotalCobrado += pago.Amount
+10. Obtiene Caja de la sucursal
+11. Si no hay Caja → confirma turno de todas formas (sin movimiento de caja), log error
+12. Crea MovimientoCaja (UsuarioId = null, MedioPago = MercadoPago)
+13. Crea PagoTurno (Concepto = Sena)
+14. RegistrarMovimientoTransaccionalAsync → transacción atómica
+15. Si el cliente tiene email → envía email de confirmación de turno
 ```
 
 #### Procesamiento sincrónico
@@ -533,8 +543,9 @@ Endpoint que recibe notificaciones de cambio de estado de pagos desde MercadoPag
 | Aspecto | Detalle |
 |---|---|
 | Autenticación | **Sin autenticación** — lo llama MP directamente |
-| Respuesta | Siempre `200 OK` (para evitar reintentos de MP) |
-| Procesamiento | Fire-and-forget en `Task.Run` background |
+| Firma | Validación HMAC-SHA256 del header `x-signature` (si `WebhookSecret` está configurado) |
+| Respuesta | Siempre `200 OK` (para evitar reintentos de MP, incluso al rechazar por firma inválida) |
+| Procesamiento | Sincrónico antes de retornar `200 OK` |
 | Controller | `Api/Controllers/WebhooksController.cs` |
 
 **Formatos de entrada soportados:**
@@ -627,7 +638,8 @@ Mapean el body del webhook v2 de MercadoPago.
   "MercadoPago": {
     "AccessToken": "TEST-xxxx",
     "PublicKey": "TEST-yyyy",
-    "NotificationUrl": "https://tudominio.com/api/webhooks/mercadopago"
+    "NotificationUrl": "https://tudominio.com/api/webhooks/mercadopago",
+    "WebhookSecret": ""
   },
   "App": {
     "FrontendUrl": "http://localhost:5173"
@@ -640,6 +652,7 @@ Mapean el body del webhook v2 de MercadoPago.
 | `AccessToken` | Token privado del vendedor. **Nunca exponer al frontend.** | MP Developers → Credenciales |
 | `PublicKey` | Clave pública para inicializar el SDK del frontend (MP Brick). | MP Developers → Credenciales |
 | `NotificationUrl` | URL pública que MP llama para notificaciones de pago. Debe ser HTTPS en producción. | Configurar al hacer deploy |
+| `WebhookSecret` | Secreto HMAC para validar la firma del header `x-signature`. Dejar vacío en desarrollo local (la validación se omite). | MP Developers → Notificaciones Webhooks → "Secreto" |
 
 ### `MercadoPagoOptions`
 
@@ -687,16 +700,76 @@ builder.Services.AddScoped<IPagoTurnoService>(sp => new PagoTurnoService(
 
 ---
 
-## 13. Idempotencia y casos borde
+## 13. Seguridad, idempotencia y casos borde
+
+### Validación de firma del webhook (`x-signature`)
+
+El `WebhooksController` valida la firma HMAC-SHA256 que MP incluye en el header `x-signature` de cada notificación. Esto garantiza que la solicitud fue originada por los servidores de MP y no por un tercero.
+
+**Algoritmo:**
+```
+Header: x-signature: ts=<unix_timestamp>,v1=<hmac_hex>
+Header: x-request-id: <uuid>
+
+manifest  = "id:<data.id>;request-id:<x-request-id>;ts:<ts>"
+esperado  = HMAC-SHA256(WebhookSecret, manifest) en hex
+```
+
+La comparación final usa `CryptographicOperations.FixedTimeEquals` (tiempo constante) en lugar de `==`, previniendo timing attacks donde un atacante podría inferir cuántos caracteres de la firma son correctos midiendo el tiempo de respuesta.
+
+Si `WebhookSecret` está vacío (entorno de desarrollo), la validación se omite. En producción debe configurarse el valor del panel de MP Developers → Notificaciones Webhooks → "Secreto".
+
+Al rechazar una firma inválida, el endpoint responde `200 OK` igualmente para no revelar información sobre el rechazo a posibles atacantes.
+
+### Validación de sucursal
+
+Antes de procesar el resultado de un pago, `ProcesarNotificacionPagoAsync` verifica que el turno obtenido de la DB pertenezca a la misma sucursal que vino en el webhook:
+
+```csharp
+if (turno.SucursalId != sucursalId)
+{
+    _logger.LogWarning(
+        "Mismatch de sucursal para PaymentId={PaymentId}. " +
+        "Webhook sucursalId={WebhookSucursalId}, turno sucursalId={TurnoSucursalId}",
+        paymentId, sucursalId, turno.SucursalId);
+    return;
+}
+```
+
+Esto previene que alguien use un `paymentId` real con un `sucursalId` diferente para intentar procesar un pago en el contexto incorrecto.
+
+### Validación de monto cobrado
+
+Antes de confirmar el turno, se valida que el monto reportado por MP coincida con el monto esperado:
+
+```csharp
+var montoEsperado = turno.MontoSena > 0 ? turno.MontoSena!.Value : turno.PrecioServicio;
+var esperado = decimal.Round(montoEsperado, 2);
+var recibido = decimal.Round(pago.Amount, 2);
+
+if (esperado != recibido)
+{
+    _logger.LogWarning(
+        "Monto inesperado para turno {TurnoId}. Esperado={Esperado}, Recibido={Recibido}. Pago {PaymentId} ignorado.",
+        turnoId, esperado, recibido, paymentId);
+    return;
+}
+```
+
+Ambos valores se redondean a 2 decimales antes de comparar para evitar falsos rechazos por diferencias de precisión entre lo que devuelve la API de MP (`TransactionAmount`) y el valor almacenado en la BD (`numeric(18,2)`).
+
+Esto garantiza que no se confirme un turno si MP procesó un monto diferente al de la seña (por ejemplo, por una preferencia corrupta o un ataque de modificación de precio).
 
 ### Idempotencia en `GenerarLinkDePagoAsync`
 
-Si el frontend llama múltiples veces a `POST /api/pagos/turnos/{id}/iniciar-pago` para el mismo turno (por ejemplo, si el usuario cierra y reabre la página), el servicio devuelve el mismo `preferenceId` sin crear una nueva preferencia en MP:
+Si el frontend llama múltiples veces a `POST /api/pagos/turnos/{id}/iniciar-pago` para el mismo turno (por ejemplo, si el usuario cierra y reabre la página), el servicio retorna la URL ya guardada sin crear una nueva preferencia en MP:
 
 ```csharp
-if (!string.IsNullOrEmpty(turno.MpPreferenceId))
-    return turno.MpPreferenceId;  // reutiliza sin llamar a MP
+if (!string.IsNullOrEmpty(turno.MpPreferenceId) && !string.IsNullOrEmpty(turno.MpCheckoutUrl))
+    return turno.MpCheckoutUrl;  // reutiliza sin llamar a MP
 ```
+
+Ambos campos (`MpPreferenceId` y `MpCheckoutUrl`) se persisten juntos al crear la preferencia.
 
 ### Idempotencia en `ProcesarNotificacionPagoAsync`
 
@@ -783,7 +856,7 @@ El estado `PendientePago` bloquea horarios automáticamente porque la consulta S
 
 ## 15. Migraciones de base de datos
 
-Se generaron dos migraciones en esta implementación:
+Se generaron tres migraciones en esta implementación:
 
 ### `20260318152628_AddMercadoPagoFields`
 
@@ -807,16 +880,31 @@ ALTER TABLE turnos ADD COLUMN "MpPreferenceId" character varying(200);
 ALTER TABLE movimientos_caja ALTER COLUMN "UsuarioId" DROP NOT NULL;
 ```
 
+### `AddMpCheckoutUrlToTurnos`
+
+Agrega la columna para persistir la URL de checkout y habilitar idempotencia en `GenerarLinkDePagoAsync`:
+
+```sql
+ALTER TABLE turnos ADD COLUMN "MpCheckoutUrl" character varying(500);
+```
+
+Generar con:
+
+```bash
+dotnet ef migrations add AddMpCheckoutUrlToTurnos \
+    --project src/Infrastructure --startup-project src/Api
+```
+
 **Cómo aplicar en un entorno nuevo:**
 
 ```bash
 dotnet ef database update --project src/Infrastructure --startup-project src/Api
 ```
 
-**Cómo revertir:**
+**Cómo revertir la última migración:**
 
 ```bash
-dotnet ef database update 20260316150855_AgregarPlantillasWhatsApp \
+dotnet ef database update 20260318152832_AddMercadoPagoFieldsV2 \
     --project src/Infrastructure --startup-project src/Api
 ```
 

@@ -8,6 +8,7 @@ public class AjustesSucursalDto
     public string Nombre { get; set; } = string.Empty;
     public string? Slogan { get; set; }
     public string? FotoUrl { get; set; }
+    public string? BackgroundUrl { get; set; }
     public List<string> Rubros { get; set; } = new();
     public string Moneda { get; set; } = "ARS";
 

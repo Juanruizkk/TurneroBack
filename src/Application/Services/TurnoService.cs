@@ -17,6 +17,8 @@ public class TurnoService
     private readonly ITurnoNotificacionService?   _notificaciones;
     private readonly IHorarioLaboralRepository?   _horarioRepo;
     private readonly IUsuarioServicioRepository?  _usuarioServicioRepo;
+    private readonly ISuscripcionRepository?      _suscripcionRepo;
+    private readonly SuscripcionGuard?            _suscripcionGuard;
 
     public TurnoService(
         ITurnoRepository turnoRepository,
@@ -28,7 +30,9 @@ public class TurnoService
         string frontendUrl,
         ITurnoNotificacionService? notificaciones = null,
         IHorarioLaboralRepository? horarioRepo = null,
-        IUsuarioServicioRepository? usuarioServicioRepo = null)
+        IUsuarioServicioRepository? usuarioServicioRepo = null,
+        ISuscripcionRepository? suscripcionRepo = null,
+        SuscripcionGuard? suscripcionGuard = null)
     {
         _turnoRepository      = turnoRepository;
         _servicioRepository   = servicioRepository;
@@ -40,6 +44,8 @@ public class TurnoService
         _notificaciones       = notificaciones;
         _horarioRepo          = horarioRepo;
         _usuarioServicioRepo  = usuarioServicioRepo;
+        _suscripcionRepo      = suscripcionRepo;
+        _suscripcionGuard     = suscripcionGuard;
     }
 
     public async Task<IEnumerable<TurnoResponseDto>> GetAllAsync()
@@ -68,11 +74,29 @@ public class TurnoService
 
     public async Task<TurnoResponseDto> CreateAsync(CreateTurnoDto dto)
     {
+        if (_suscripcionGuard is not null)
+            await _suscripcionGuard.VerificarActivaAsync(dto.SucursalId);
+
         var servicio = await _servicioRepository.GetByIdAsync(dto.ServicioId)
             ?? throw new InvalidOperationException($"Servicio con Id {dto.ServicioId} no encontrado.");
 
         var cliente = await _clienteRepository.GetByIdAsync(dto.ClienteId)
             ?? throw new InvalidOperationException($"Cliente con Id {dto.ClienteId} no encontrado.");
+
+        // Validar límite de turnos del plan
+        if (_suscripcionRepo is not null)
+        {
+            var suscripcion = await _suscripcionRepo.GetBySucursalAsync(dto.SucursalId);
+            if (suscripcion?.Plan.MaxTurnosMes is int limite)
+            {
+                var mes = dto.FechaHoraInicio;
+                var usados = await _turnoRepository.ContarPorSucursalEnMesAsync(dto.SucursalId, mes.Year, mes.Month);
+                if (usados >= limite)
+                    throw new InvalidOperationException(
+                        $"Tu plan {suscripcion.Plan.Nombre} permite hasta {limite} turnos por mes. " +
+                        "Actualizá tu suscripción para continuar.");
+            }
+        }
 
         var fechaHoraFin = dto.FechaHoraInicio.AddMinutes(servicio.DuracionAgendaMin);
 

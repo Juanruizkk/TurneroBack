@@ -160,6 +160,25 @@ public class SuperAdminController : ControllerBase
         }
     }
 
+    // PATCH /api/superadmin/planes/{id}/precio
+    [HttpPatch("planes/{id:guid}/precio")]
+    [ProducesResponseType(typeof(PlanDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CambiarPrecioPlan(Guid id, [FromBody] CambiarPrecioPlanDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var result = await _service.CambiarPrecioPlanAsync(id, dto);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     // PATCH /api/superadmin/planes/{id}/estado
     [HttpPatch("planes/{id:guid}/estado")]
     [ProducesResponseType(typeof(PlanDto), StatusCodes.Status200OK)]

@@ -10,31 +10,15 @@ namespace TurneroApp.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "MensajeWhatsApp24h",
-                table: "configuraciones_sucursal",
-                type: "character varying(2000)",
-                maxLength: 2000,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "MensajeWhatsApp3h",
-                table: "configuraciones_sucursal",
-                type: "character varying(2000)",
-                maxLength: 2000,
-                nullable: true);
+            // Columnas ya agregadas en AgregarPlantillasWhatsApp (20260316150855).
+            // Esta migration quedó duplicada. Se deja vacía para no romper
+            // el historial de migrations en DBs existentes.
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "MensajeWhatsApp24h",
-                table: "configuraciones_sucursal");
-
-            migrationBuilder.DropColumn(
-                name: "MensajeWhatsApp3h",
-                table: "configuraciones_sucursal");
+            // No-op correspondiente al Up vacío.
         }
     }
 }

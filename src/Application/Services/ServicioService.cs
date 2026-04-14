@@ -7,10 +7,14 @@ namespace TurneroApp.Application.Services;
 public class ServicioService
 {
     private readonly IServicioRepository _servicioRepository;
+    private readonly SuscripcionGuard    _suscripcionGuard;
 
-    public ServicioService(IServicioRepository servicioRepository)
+    public ServicioService(
+        IServicioRepository servicioRepository,
+        SuscripcionGuard    suscripcionGuard)
     {
         _servicioRepository = servicioRepository;
+        _suscripcionGuard   = suscripcionGuard;
     }
 
     public async Task<IEnumerable<ServicioResponseDto>> GetAllAsync()
@@ -33,6 +37,8 @@ public class ServicioService
 
     public async Task<ServicioResponseDto> CreateAsync(CreateServicioDto dto)
     {
+        await _suscripcionGuard.VerificarActivaAsync(dto.SucursalId);
+
         var servicio = new Servicio
         {
             Id = Guid.NewGuid(),

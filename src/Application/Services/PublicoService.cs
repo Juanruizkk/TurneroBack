@@ -21,34 +21,34 @@ public class PublicoService
         [DayOfWeek.Sunday]    = "Domingo",
     };
 
-    private readonly ISucursalRepository        _sucursalRepo;
-    private readonly IServicioRepository        _servicioRepo;
-    private readonly ITurnoRepository           _turnoRepo;
-    private readonly IUsuarioRepository         _usuarioRepo;
-    private readonly IHorarioLaboralRepository  _horarioRepo;
-    private readonly IUsuarioServicioRepository _usuarioServicioRepo;
+    private readonly ISucursalRepository           _sucursalRepo;
+    private readonly IServicioRepository           _servicioRepo;
+    private readonly ITurnoRepository              _turnoRepo;
+    private readonly IUsuarioSucursalRolRepository _usrRepo;
+    private readonly IHorarioLaboralRepository     _horarioRepo;
+    private readonly IUsuarioServicioRepository    _usuarioServicioRepo;
 
     public PublicoService(
-        ISucursalRepository        sucursalRepo,
-        IServicioRepository        servicioRepo,
-        ITurnoRepository           turnoRepo,
-        IUsuarioRepository         usuarioRepo,
-        IHorarioLaboralRepository  horarioRepo,
-        IUsuarioServicioRepository usuarioServicioRepo)
+        ISucursalRepository           sucursalRepo,
+        IServicioRepository           servicioRepo,
+        ITurnoRepository              turnoRepo,
+        IUsuarioSucursalRolRepository usrRepo,
+        IHorarioLaboralRepository     horarioRepo,
+        IUsuarioServicioRepository    usuarioServicioRepo)
     {
         _sucursalRepo        = sucursalRepo;
         _servicioRepo        = servicioRepo;
         _turnoRepo           = turnoRepo;
-        _usuarioRepo         = usuarioRepo;
+        _usrRepo             = usrRepo;
         _horarioRepo         = horarioRepo;
         _usuarioServicioRepo = usuarioServicioRepo;
     }
 
     // ─── Perfil público ───────────────────────────────────────────────────────
 
-    public async Task<PerfilPublicoDto> ObtenerPerfilAsync(Guid sucursalId)
+    public async Task<PerfilPublicoDto> ObtenerPerfilAsync(string slug)
     {
-        var sucursal = await _sucursalRepo.GetByIdConConfiguracionAsync(sucursalId)
+        var sucursal = await _sucursalRepo.GetBySlugAsync(slug)
             ?? throw new InvalidOperationException("Sucursal no encontrada.");
 
         var horariosJson = sucursal.ConfiguracionSucursal?.HorariosAtencionJson ?? "{}";
@@ -58,10 +58,13 @@ public class PublicoService
 
         return new PerfilPublicoDto
         {
-            Nombre    = sucursal.Nombre,
-            Slogan    = sucursal.Slogan,
-            FotoUrl   = sucursal.FotoUrl,
-            Rubros    = sucursal.Rubros,
+            SucursalId    = sucursal.Id,
+            Slug          = sucursal.Slug,
+            Nombre        = sucursal.Nombre,
+            Slogan        = sucursal.Slogan,
+            FotoUrl       = sucursal.FotoUrl,
+            BackgroundUrl = sucursal.BackgroundUrl,
+            Rubros        = sucursal.Rubros,
             Moneda    = sucursal.Moneda,
             Direccion = sucursal.Direccion,
             Telefono  = sucursal.Telefono,
@@ -75,10 +78,10 @@ public class PublicoService
 
     /// <param name="fecha">Fecha en formato yyyy-MM-dd (hora local del negocio).</param>
     public async Task<List<SlotDisponibleDto>> ObtenerSlotsAsync(
-        Guid sucursalId, DateOnly fecha, Guid servicioId)
+        string slug, DateOnly fecha, Guid servicioId)
     {
         // 1. Configuración
-        var sucursal = await _sucursalRepo.GetByIdConConfiguracionAsync(sucursalId);
+        var sucursal = await _sucursalRepo.GetBySlugAsync(slug);
         if (sucursal is null) return [];
 
         var config = sucursal.ConfiguracionSucursal;
@@ -108,12 +111,12 @@ public class PublicoService
         int duracion = servicio.DuracionAgendaMin;
 
         // 4. Usuarios activos que pueden atender turnos (cualquier rol operativo)
-        var todos = await _usuarioRepo.GetBySucursalAsync(sucursalId);
-        var todosDict = todos.ToDictionary(u => u.Id);
-        var profesionales = todos
-            .Where(u => u.Estado == EstadoUsuario.Activo &&
-                        (u.Rol == RolUsuario.Profesional || u.Rol == RolUsuario.Administrativo))
-            .Select(u => u.Id)
+        var usrs = await _usrRepo.GetBySucursalAsync(sucursal.Id);
+        var todosDict = usrs.ToDictionary(usr => usr.UsuarioId, usr => usr.Usuario);
+        var profesionales = usrs
+            .Where(usr => usr.Estado == EstadoUsuario.Activo &&
+                          (usr.Rol == RolUsuario.Profesional || usr.Rol == RolUsuario.Administrativo))
+            .Select(usr => usr.UsuarioId)
             .ToList();
 
         // Si no hay ningún usuario activo, igualmente generar slots sin verificar conflictos
@@ -127,7 +130,7 @@ public class PublicoService
         // 5. Turnos activos del día (timestamp without time zone → Kind=Unspecified)
         var diaInicio = DateTime.SpecifyKind(fecha.ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
         var diaFin    = DateTime.SpecifyKind(fecha.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Unspecified);
-        var turnosDelDia = (await _turnoRepo.GetActivosSucursalEnRangoAsync(sucursalId, diaInicio, diaFin))
+        var turnosDelDia = (await _turnoRepo.GetActivosSucursalEnRangoAsync(sucursal.Id, diaInicio, diaFin))
             .ToList();
 
         // Horarios y servicios por profesional (carga en batch — solo para usuarios reales)

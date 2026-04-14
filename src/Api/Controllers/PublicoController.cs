@@ -15,6 +15,7 @@ public class PublicoController : ControllerBase
         _service = service;
     }
 
+
     /// <summary>Perfil público de la sucursal (nombre, slogan, foto, rubros, horarios).</summary>
     [HttpGet("{slug}/perfil")]
     public async Task<IActionResult> Perfil(string slug)

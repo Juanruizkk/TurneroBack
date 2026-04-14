@@ -10,12 +10,9 @@ public class UsuarioServicioConfiguration : IEntityTypeConfiguration<UsuarioServ
     {
         builder.ToTable("usuario_servicios");
 
-        builder.HasKey(us => new { us.UsuarioId, us.ServicioId });
+        builder.HasKey(us => new { us.UsuarioSucursalRolId, us.ServicioId });
 
-        builder.HasOne(us => us.Usuario)
-            .WithMany(u => u.Servicios)
-            .HasForeignKey(us => us.UsuarioId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // La relación con UsuarioSucursalRol está configurada en UsuarioSucursalRolConfiguration.
 
         builder.HasOne(us => us.Servicio)
             .WithMany()

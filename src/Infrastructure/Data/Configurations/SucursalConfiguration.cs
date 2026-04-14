@@ -18,11 +18,31 @@ public class SucursalConfiguration : IEntityTypeConfiguration<Sucursal>
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(s => s.Slug)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        builder.HasIndex(s => s.Slug)
+            .IsUnique()
+            .HasDatabaseName("IX_sucursales_slug");
+
         builder.Property(s => s.Slogan)
             .HasMaxLength(300)
             .IsRequired(false);
 
         builder.Property(s => s.FotoUrl)
+            .HasMaxLength(2000)
+            .IsRequired(false);
+
+        builder.Property(s => s.FotoPublicId)
+            .HasMaxLength(500)
+            .IsRequired(false);
+
+        builder.Property(s => s.BackgroundUrl)
+            .HasMaxLength(2000)
+            .IsRequired(false);
+
+        builder.Property(s => s.BackgroundPublicId)
             .HasMaxLength(500)
             .IsRequired(false);
 
@@ -60,10 +80,7 @@ public class SucursalConfiguration : IEntityTypeConfiguration<Sucursal>
             .HasDefaultValueSql("now()")
             .HasColumnType("timestamptz");
 
-        builder.HasMany(s => s.Usuarios)
-            .WithOne(u => u.Sucursal)
-            .HasForeignKey(u => u.SucursalId)
-            .OnDelete(DeleteBehavior.Restrict);
+        // Relación con UsuarioSucursalRol configurada en UsuarioSucursalRolConfiguration.
 
         builder.HasMany(s => s.Servicios)
             .WithOne(sv => sv.Sucursal)

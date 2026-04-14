@@ -2,17 +2,19 @@
 
 Sistema de incorporación de usuarios al equipo de una sucursal mediante un enlace de invitación enviado por email.
 
+> **Actualizado**: este documento refleja el modelo multi-sucursal (`UsuarioSucursalRol`). Ver [`usuario-sucursal-rol.md`](./usuario-sucursal-rol.md) para el contexto arquitectural completo.
+
 ---
 
 ## Índice
 
 1. [Descripción general](#1-descripción-general)
-2. [Flujo completo](#2-flujo-completo)
-3. [Entidad: Usuario](#3-entidad-usuario)
-4. [Endpoints](#4-endpoints)
-5. [Servicios involucrados](#5-servicios-involucrados)
-6. [Plantilla de email](#6-plantilla-de-email)
-7. [Configuración SMTP](#7-configuración-smtp)
+2. [Variante A — Usuario nuevo](#2-variante-a--usuario-nuevo)
+3. [Variante B — Usuario ya registrado](#3-variante-b--usuario-ya-registrado)
+4. [Entidad: UsuarioSucursalRol](#4-entidad-usuariosucursalrol)
+5. [Endpoints](#5-endpoints)
+6. [Servicios involucrados](#6-servicios-involucrados)
+7. [Plantillas de email](#7-plantillas-de-email)
 8. [Estados del usuario](#8-estados-del-usuario)
 9. [Reglas de negocio](#9-reglas-de-negocio)
 10. [Diagrama de secuencia](#10-diagrama-de-secuencia)
@@ -24,86 +26,125 @@ Sistema de incorporación de usuarios al equipo de una sucursal mediante un enla
 
 Cuando un owner o administrador crea un nuevo usuario en su sucursal, **el sistema no pide contraseña**. En su lugar:
 
-1. Genera un token único de invitación.
-2. Envía un email al nuevo usuario con un enlace personalizado.
-3. El usuario hace clic en el enlace, establece su contraseña y queda activo en el sistema.
+1. Genera un token único de invitación en `UsuarioSucursalRol`.
+2. Envía un email al invitado con un enlace personalizado.
+3. El invitado hace clic en el enlace.
+   - **Si es primera vez en la plataforma**: establece su contraseña y queda activo.
+   - **Si ya tiene cuenta**: solo acepta la invitación (sin ingresar contraseña) y queda activo en la nueva sucursal.
 
-Este flujo garantiza que la contraseña siempre la define el propio usuario, sin que el administrador la conozca.
-
----
-
-## 2. Flujo completo
-
-```
-Administrador                  Backend                       Nuevo usuario
-     │                             │                               │
-     │  POST /api/usuarios         │                               │
-     │ ──────────────────────────► │                               │
-     │                             │  Genera InvitacionToken       │
-     │                             │  Estado = PendienteInvitacion │
-     │                             │  FechaExpiracion = now + 7d   │
-     │                             │  Guarda en DB                 │
-     │                             │                               │
-     │                             │  Envía email con enlace       │
-     │                             │ ─────────────────────────────►│
-     │  201 Created                │                               │
-     │ ◄────────────────────────── │                               │
-     │                             │                               │
-     │                             │      (usuario abre el enlace) │
-     │                             │                               │
-     │                             │  GET /api/auth/invitacion/:token
-     │                             │ ◄─────────────────────────────│
-     │                             │  { nombre, sucursal, rol }    │
-     │                             │ ─────────────────────────────►│
-     │                             │                               │
-     │                             │  POST /api/auth/invitacion/aceptar
-     │                             │  { token, nuevaPassword }     │
-     │                             │ ◄─────────────────────────────│
-     │                             │  Valida token y vencimiento   │
-     │                             │  Estado = Activo              │
-     │                             │  InvitacionToken = null       │
-     │                             │  PasswordHash = nuevaPassword │
-     │                             │  Retorna JWT                  │
-     │                             │ ─────────────────────────────►│
-     │                             │                               │  ← ya logueado
-```
+Este flujo garantiza que la contraseña siempre la define el propio usuario y que las cuentas existentes no se duplican.
 
 ---
 
-## 3. Entidad: Usuario
+## 2. Variante A — Usuario nuevo
 
-Campos agregados para el flujo de invitación:
+El email invitado **no existe** en la tabla `usuarios`.
+
+```
+Administrador                  Backend                            Nuevo usuario
+     │                             │                                    │
+     │  POST /api/usuarios         │                                    │
+     │ ──────────────────────────► │                                    │
+     │                             │  ¿Email existe globalmente? → No   │
+     │                             │  Crear Usuario (PasswordHash="")   │
+     │                             │  Crear UsuarioSucursalRol          │
+     │                             │    Estado=PendienteInvitacion      │
+     │                             │    InvitacionToken=NewGuid         │
+     │                             │    FechaExpiracion=now+7d          │
+     │                             │  Crear UsuarioPermiso (× n permisos)
+     │                             │  Enviar email "primera invitación" │
+     │  201 Created                │ ─────────────────────────────────► │
+     │ ◄────────────────────────── │                                    │
+     │                             │     (usuario abre el enlace)       │
+     │                             │                                    │
+     │                             │  GET /api/auth/invitacion/{token}  │
+     │                             │ ◄──────────────────────────────────│
+     │                             │  { ..., yaRegistrado: false }      │
+     │                             │ ─────────────────────────────────► │
+     │                             │   (frontend muestra form password) │
+     │                             │                                    │
+     │                             │  POST /api/auth/invitacion/aceptar │
+     │                             │  { token, nuevaPassword: "..." }   │
+     │                             │ ◄──────────────────────────────────│
+     │                             │  Usuario.PasswordHash = nueva      │
+     │                             │  USR.Estado = Activo               │
+     │                             │  USR.InvitacionToken = null        │
+     │                             │  Retorna JWT                       │
+     │                             │ ─────────────────────────────────► │ ← logueado
+```
+
+---
+
+## 3. Variante B — Usuario ya registrado
+
+El email invitado **ya existe** en la tabla `usuarios` (tiene cuenta en otra sucursal).
+
+```
+Administrador                  Backend                          Usuario existente
+     │                             │                                    │
+     │  POST /api/usuarios         │                                    │
+     │ ──────────────────────────► │                                    │
+     │                             │  ¿Email existe globalmente? → Sí   │
+     │                             │  ¿Ya tiene USR en esta sucursal?→No│
+     │                             │  NO crear nuevo Usuario            │
+     │                             │  Crear UsuarioSucursalRol          │
+     │                             │    Estado=PendienteInvitacion      │
+     │                             │    InvitacionToken=NewGuid         │
+     │                             │  Crear UsuarioPermiso (× n permisos)
+     │                             │  Enviar email "ya registrado"      │
+     │  201 Created                │ ─────────────────────────────────► │
+     │ ◄────────────────────────── │                                    │
+     │                             │     (usuario abre el enlace)       │
+     │                             │                                    │
+     │                             │  GET /api/auth/invitacion/{token}  │
+     │                             │ ◄──────────────────────────────────│
+     │                             │  { ..., yaRegistrado: true }       │
+     │                             │ ─────────────────────────────────► │
+     │                             │  (frontend muestra botón "Aceptar")│
+     │                             │                                    │
+     │                             │  POST /api/auth/invitacion/aceptar │
+     │                             │  { token, nuevaPassword: null }    │
+     │                             │ ◄──────────────────────────────────│
+     │                             │  (NO modifica PasswordHash)        │
+     │                             │  USR.Estado = Activo               │
+     │                             │  USR.InvitacionToken = null        │
+     │                             │  Retorna JWT                       │
+     │                             │ ─────────────────────────────────► │ ← logueado
+```
+
+---
+
+## 4. Entidad: UsuarioSucursalRol
+
+Los campos de invitación ya no están en `Usuario` sino en `UsuarioSucursalRol`:
 
 | Campo | Tipo | Descripción |
 |---|---|---|
-| `InvitacionToken` | `string?` | Token UUID sin guiones, único por índice parcial (solo cuando no es null). Se borra al aceptar. |
-| `FechaExpiracionInvitacion` | `DateTime?` | Fecha límite para aceptar (7 días desde la creación). Se borra al aceptar. |
+| `InvitacionToken` | `string?` | Token UUID sin guiones. Índice parcial único (solo cuando no es null). Se limpia al aceptar. |
+| `FechaExpiracionInvitacion` | `DateTime?` | Vencimiento (7 días desde creación). Se limpia al aceptar. |
+| `Estado` | `EstadoUsuario` | `PendienteInvitacion` hasta que se acepte, luego `Activo`. |
 
 ### Configuración Fluent API
 
 ```csharp
+// En UsuarioSucursalRolConfiguration.cs
 builder.Property(u => u.InvitacionToken)
     .HasMaxLength(100)
-    .IsRequired(false);
-
-builder.Property(u => u.FechaExpiracionInvitacion)
-    .HasColumnType("timestamptz")
     .IsRequired(false);
 
 // Índice parcial: único solo cuando el token no es null
 builder.HasIndex(u => u.InvitacionToken)
     .IsUnique()
-    .HasFilter("\"invitacion_token\" IS NOT NULL");
+    .HasFilter("\"InvitacionToken\" IS NOT NULL");
 ```
-
-> El índice parcial es clave: múltiples usuarios pueden tener `null` sin violar unicidad, pero ninguno puede compartir el mismo token activo.
 
 ---
 
-## 4. Endpoints
+## 5. Endpoints
 
 ### `POST /api/usuarios`
-Crea el usuario e inicia el flujo de invitación.
+
+Crea al usuario (o solo la membresía si ya existe) e inicia el flujo de invitación.
 
 **Request:**
 ```json
@@ -118,8 +159,6 @@ Crea el usuario e inicia el flujo de invitación.
 }
 ```
 
-> ⚠️ `passwordHash` ya **no forma parte del DTO** de creación. La contraseña la define el invitado.
-
 **Response `201 Created`:**
 ```json
 {
@@ -129,13 +168,17 @@ Crea el usuario e inicia el flujo de invitación.
   "email": "laura@ejemplo.com",
   "rol": "Profesional",
   "estado": "PendienteInvitacion",
+  "esOwner": false,
   "permisos": ["AgendarTurnos", "VerTelefonoClientes"]
 }
 ```
 
+> `id` es el `UsuarioSucursalRol.Id`, no el `Usuario.Id`.
+
 ---
 
 ### `GET /api/auth/invitacion/{token}`
+
 Devuelve información pública del token para mostrar en la pantalla de bienvenida. **No requiere autenticación.**
 
 **Response `200 OK`:**
@@ -145,23 +188,26 @@ Devuelve información pública del token para mostrar en la pantalla de bienveni
   "apellido": "Méndez",
   "email": "laura@ejemplo.com",
   "nombreSucursal": "Belleza Studio - Palermo",
-  "rol": "Profesional"
+  "rol": "Profesional",
+  "yaRegistrado": false
 }
 ```
+
+`yaRegistrado: true` cuando el `Usuario.PasswordHash` ya tiene valor (el usuario ya activó su cuenta en otra sucursal).
 
 **Errores:**
 
 | Código | Causa |
 |---|---|
-| `400` | Token no existe o ya fue utilizado |
-| `400` | Token vencido |
+| `400` | Token no existe, ya fue utilizado, o está vencido |
 
 ---
 
 ### `POST /api/auth/invitacion/aceptar`
-Activa la cuenta y retorna un JWT para que el usuario quede logueado inmediatamente.
 
-**Request:**
+Activa la membresía y retorna un JWT.
+
+**Request — usuario nuevo:**
 ```json
 {
   "token": "a3f2e1b4c5d6e7f8...",
@@ -169,9 +215,17 @@ Activa la cuenta y retorna un JWT para que el usuario quede logueado inmediatame
 }
 ```
 
+**Request — usuario ya registrado:**
+```json
+{
+  "token": "a3f2e1b4c5d6e7f8...",
+  "nuevaPassword": null
+}
+```
+
 **Validaciones:**
 - `token`: requerido
-- `nuevaPassword`: requerido, mínimo 6 caracteres, máximo 200
+- `nuevaPassword`: opcional; si se envía, mínimo 6 caracteres
 
 **Response `200 OK`:**
 ```json
@@ -191,175 +245,134 @@ Activa la cuenta y retorna un JWT para que el usuario quede logueado inmediatame
 ---
 
 ### `POST /api/usuarios/{id}/reenviar-invitacion`
-Regenera el token (invalida el anterior) y reenvía el email. Solo disponible para usuarios en estado `PendienteInvitacion`.
+
+Regenera el token (invalida el anterior) y reenvía el email correspondiente (variante A o B según si tiene contraseña). Solo disponible para usuarios en estado `PendienteInvitacion`.
 
 **Response `204 No Content`**
 
-**Errores:**
-
-| Código | Causa |
-|---|---|
-| `400` | El usuario no está en estado `PendienteInvitacion` |
-| `404` | Usuario no encontrado |
-
 ---
 
-## 5. Servicios involucrados
+## 6. Servicios involucrados
 
 ### `UsuarioService` — Application layer
 
-Responsabilidades en el flujo de invitación:
-
 ```csharp
-// Al crear usuario
-var token = Guid.NewGuid().ToString("N"); // ej: "a3f2e1b4c5d6e7f8a9b0c1d2e3f4a5b6"
+public async Task<UsuarioResponseDto> CreateAsync(CreateUsuarioDto dto)
+{
+    var emailNorm = dto.Email.ToLowerInvariant().Trim();
+    var usuarioExistente = await _usuarioRepo.GetByEmailAsync(emailNorm);
 
-usuario.InvitacionToken           = token;
-usuario.FechaExpiracionInvitacion = DateTime.UtcNow.AddDays(7);
-usuario.Estado                    = EstadoUsuario.PendienteInvitacion;
-usuario.PasswordHash              = string.Empty;
+    if (usuarioExistente is not null)
+    {
+        // Variante B: solo crear USR (no duplicar Usuario)
+        var usrExistente = await _usrRepository.GetByUsuarioYSucursalAsync(
+            usuarioExistente.Id, dto.SucursalId);
+        if (usrExistente is not null)
+            throw new InvalidOperationException("El usuario ya pertenece a esta sucursal.");
 
-// Después de guardar en DB, enviar email
-var link = $"{_frontendUrl}/invitacion/{token}";
-await _emailService.EnviarInvitacionAsync(email, nombreCompleto, sucursal.Nombre, link);
+        var nuevoUsr = new UsuarioSucursalRol { ... InvitacionToken = token };
+        await _usrRepository.AddAsync(nuevoUsr);
+        // Crear permisos con FK → nuevoUsr.Id
+        await _emailService.EnviarInvitacionUsuarioExistenteAsync(...);
+        return MapToResponse(nuevoUsr);
+    }
+
+    // Variante A: crear Usuario + USR
+    var usuario = new Usuario { PasswordHash = "", Email = emailNorm, ... };
+    var usr = new UsuarioSucursalRol { UsuarioId = usuario.Id, ... InvitacionToken = token };
+    await _usuarioRepo.AddAsync(usuario);
+    await _usrRepository.AddAsync(usr);
+    await _emailService.EnviarInvitacionAsync(...);
+    return MapToResponse(usr);
+}
 ```
 
-> Si el envío del email falla, el usuario igual queda creado en DB. El administrador puede reenviar la invitación manualmente.
-
----
-
 ### `InvitacionService` — Application layer
-
-Responsabilidades al aceptar:
 
 ```csharp
 public async Task<UsuarioAutenticadoDto> AceptarAsync(AceptarInvitacionDto dto)
 {
-    var usuario = await _usuarioRepo.GetByInvitacionTokenAsync(dto.Token);
-    // Validaciones: token existe, estado PendienteInvitacion, no vencido
+    var usr = await _usrRepo.GetByInvitacionTokenAsync(dto.Token)
+        ?? throw new InvalidOperationException("El enlace de invitación no es válido.");
 
-    usuario.PasswordHash              = dto.NuevaPassword; // TODO: BCrypt
-    usuario.Estado                    = EstadoUsuario.Activo;
-    usuario.InvitacionToken           = null;
-    usuario.FechaExpiracionInvitacion = null;
+    if (usr.FechaExpiracionInvitacion < DateTime.UtcNow)
+        throw new InvalidOperationException("El enlace venció. Pedile al administrador que reenvíe la invitación.");
 
-    // Guardar y retornar UsuarioAutenticadoDto (sin token JWT — lo genera la capa Api)
+    if (dto.NuevaPassword is not null)
+    {
+        // Variante A
+        usr.Usuario.PasswordHash = dto.NuevaPassword; // TODO: BCrypt
+    }
+    else
+    {
+        // Variante B — verificar que ya tiene contraseña
+        if (string.IsNullOrEmpty(usr.Usuario.PasswordHash))
+            throw new InvalidOperationException("Debés establecer una contraseña.");
+    }
+
+    usr.Estado           = EstadoUsuario.Activo;
+    usr.InvitacionToken  = null;
+    usr.FechaExpiracionInvitacion = null;
+
+    _usrRepo.Update(usr);
+    await _usrRepo.SaveChangesAsync();
+    return MapToAutenticado(usr.Usuario, usr);
 }
 ```
 
----
+### `IEmailService` — dos métodos de invitación
 
-### `IEmailService` / `EmailService` — Infrastructure layer
+```csharp
+// Variante A: usuario nuevo — incluye instrucciones de contraseña
+Task EnviarInvitacionAsync(
+    string destinatarioEmail, string destinatarioNombre,
+    string nombreSucursal, string linkInvitacion);
 
+// Variante B: usuario existente — solo acepta la membresía
+Task EnviarInvitacionUsuarioExistenteAsync(
+    string destinatarioEmail, string destinatarioNombre,
+    string nombreSucursal, string linkInvitacion);
 ```
-Application/Interfaces/IEmailService.cs   ← contrato
-Infrastructure/Services/EmailService.cs   ← implementación con MailKit
-```
-
-La interfaz define dos métodos:
-- `EnviarInvitacionAsync(...)` — primera invitación
-- `EnviarReenvioInvitacionAsync(...)` — reenvío (mismo template, distinto asunto)
-
-La implementación usa **MailKit** con STARTTLS en el puerto 587.
-
----
-
-### `JwtService` — Api layer
-
-Luego de que `InvitacionService` activa al usuario, `AuthController` llama a `JwtService.GenerarRespuesta(usuario)` para emitir el JWT y devolver la sesión completa.
 
 ---
 
-## 6. Plantilla de email
+## 7. Plantillas de email
 
-Email HTML responsivo con:
-- Cabecera con color primario `#B4697B`
-- Saludo personalizado con nombre del invitado
-- Nombre de la sucursal destacado
-- Botón CTA "Aceptar invitación"
-- Enlace de texto como respaldo
-- Aviso de vencimiento (7 días)
-- Footer con mensaje de seguridad
+### Variante A — Primera invitación
 
-**Asuntos:**
+- Asunto: `Tu invitación para unirte a {nombreSucursal}`
+- Cuerpo: saludo, nombre de sucursal, instrucción de establecer contraseña, botón "Aceptar invitación", aviso vencimiento 7 días.
 
-| Caso | Asunto |
-|---|---|
-| Primera invitación | `Tu invitación para unirte a {nombreSucursal}` |
-| Reenvío | `Nuevo enlace de invitación — {nombreSucursal}` |
+### Variante B — Usuario ya registrado
 
----
-
-## 7. Configuración SMTP
-
-En `appsettings.json`:
-
-```json
-"Smtp": {
-  "Host": "smtp.gmail.com",
-  "Port": "587",
-  "Username": "noreply@tudominio.com",
-  "Password": "tu-app-password",
-  "FromEmail": "noreply@tudominio.com",
-  "FromName": "TurneroApp"
-}
-```
-
-### Gmail — App Password
-
-1. Activar **verificación en dos pasos** en la cuenta Google.
-2. Ir a **Seguridad → Contraseñas de aplicaciones**.
-3. Generar una contraseña para "Correo / Windows".
-4. Usar esa contraseña de 16 caracteres en `Smtp:Password`.
-
-### Otros proveedores comunes
-
-| Proveedor | Host | Puerto |
-|---|---|---|
-| Gmail | `smtp.gmail.com` | `587` |
-| Outlook / Hotmail | `smtp.office365.com` | `587` |
-| SendGrid | `smtp.sendgrid.net` | `587` |
-| Brevo (Sendinblue) | `smtp-relay.brevo.com` | `587` |
-| Mailgun | `smtp.mailgun.org` | `587` |
-
-### Producción — variable de entorno
-
-En producción nunca poner credenciales en `appsettings.json`. Usar variables de entorno:
-
-```bash
-# Docker / servidor
-SMTP__Host=smtp.sendgrid.net
-SMTP__Port=587
-SMTP__Username=apikey
-SMTP__Password=SG.xxxxxxxxxxxx
-```
-
-> .NET lee automáticamente `SMTP__Host` como `Smtp:Host` (doble guión bajo = separador de sección).
+- Asunto: `Te invitaron a unirte a {nombreSucursal}`
+- Cuerpo: "Tu correo ya está registrado en TurneroApp. Solo necesitás aceptar la invitación para unirte a **{sucursal}**." Sin mención de contraseña. Botón "Aceptar invitación".
 
 ---
 
 ## 8. Estados del usuario
 
+El estado vive en `UsuarioSucursalRol.Estado`, no en `Usuario`.
+
 ```
                     ┌─────────────────────┐
        crear        │                     │
-  ────────────────► │  PendienteInvitacion│ ──── reenviar invitacion (regenera token)
-                    │                     │         (mismo estado, nuevo token)
+  ────────────────► │  PendienteInvitacion│ ──── reenviar invitacion
+                    │                     │         (regenera token, mismo estado)
                     └──────────┬──────────┘
                                │
                                │  aceptar invitación
-                               │  (token válido + nueva password)
                                ▼
                     ┌─────────────────────┐
                     │       Activo        │ ──── soft delete ──► Inactivo
                     └─────────────────────┘
 ```
 
-| Estado | Badge | Descripción |
-|---|---|---|
-| `PendienteInvitacion` | 🟡 naranja | Usuario creado, email enviado, aún no aceptó |
-| `Activo` | 🟢 verde | Invitación aceptada, puede iniciar sesión |
-| `Inactivo` | ⚫ gris | Dado de baja (soft delete) |
+| Estado | Descripción |
+|---|---|
+| `PendienteInvitacion` | Membresía creada, email enviado, aún no aceptó |
+| `Activo` | Invitación aceptada, puede iniciar sesión en esta sucursal |
+| `Inactivo` | Dado de baja (soft delete sobre la membresía, no sobre el Usuario global) |
 
 ---
 
@@ -367,79 +380,38 @@ SMTP__Password=SG.xxxxxxxxxxxx
 
 | Regla | Detalle |
 |---|---|
-| **Sin contraseña en creación** | El DTO `CreateUsuarioDto` no incluye `passwordHash`. La contraseña la define el invitado. |
-| **Vencimiento de 7 días** | Si el token vence, el admin debe usar "Reenviar invitación" para generar uno nuevo. |
-| **Token de un solo uso** | Al aceptar, `InvitacionToken` se pone en `null`. Intentar usar el mismo token otra vez devuelve error. |
-| **Token único activo** | El índice parcial en DB garantiza que no pueden existir dos tokens iguales activos simultáneamente. |
-| **Reenvío regenera token** | El reenvío invalida el token anterior y crea uno nuevo con 7 días renovados. |
-| **Email no bloquea creación** | Si el envío SMTP falla, el usuario igual queda en DB. Se puede reenviar manualmente. |
-| **Login bloqueado** | Un usuario en `PendienteInvitacion` no puede hacer login. El `AuthService` solo acepta usuarios `Activo`. |
-| **Email único por sucursal** | Se valida antes de crear. Un mismo email puede existir en distintas sucursales (owner multi-sucursal). |
+| **Sin contraseña en creación** | El DTO no incluye contraseña. La define el invitado. |
+| **Vencimiento de 7 días** | Si vence, el admin reenvía la invitación para renovar el token. |
+| **Token de un solo uso** | Al aceptar, `InvitacionToken` se pone en `null`. Reusar el token devuelve error. |
+| **Token único activo** | Índice parcial en DB garantiza unicidad cuando no es null. |
+| **No duplicar Usuario** | Si el email ya existe globalmente, solo se crea `UsuarioSucursalRol`. |
+| **Un USR por sucursal** | El índice unique `(UsuarioId, SucursalId)` impide duplicados. |
+| **Email no bloquea creación** | Si el envío falla, la membresía igual queda en DB. Se puede reenviar. |
+| **Login bloqueado en pendiente** | `AuthService` solo acepta USR con `Estado = Activo`. |
+| **Soft delete es por membresía** | Inactivar un usuario en sucursal A no afecta su acceso a sucursal B. |
 
 ---
 
 ## 10. Diagrama de secuencia
 
 ```
-Admin Frontend          UsuariosController       UsuarioService        IEmailService        DB
-      │                        │                       │                     │               │
-      │  POST /api/usuarios    │                       │                     │               │
-      │ ──────────────────────►│                       │                     │               │
-      │                        │  CreateAsync(dto)     │                     │               │
-      │                        │ ─────────────────────►│                     │               │
-      │                        │                       │  GetByEmailAsync    │               │
-      │                        │                       │ ──────────────────────────────────►│
-      │                        │                       │  null (email libre) │               │
-      │                        │                       │ ◄──────────────────────────────────│
-      │                        │                       │                     │               │
-      │                        │                       │  token = NewGuid()  │               │
-      │                        │                       │  AddAsync(usuario)  │               │
-      │                        │                       │ ──────────────────────────────────►│
-      │                        │                       │  SaveChangesAsync   │               │
-      │                        │                       │ ──────────────────────────────────►│
-      │                        │                       │                     │               │
-      │                        │                       │  EnviarInvitacionAsync              │
-      │                        │                       │ ───────────────────►│               │
-      │                        │                       │                     │  SMTP send    │
-      │                        │                       │                     │ ─────────────►│
-      │                        │  201 + UsuarioDto     │                     │               │
-      │ ◄──────────────────────│ ◄─────────────────────│                     │               │
-      │                        │                       │                     │               │
-
-Usuario Frontend        AuthController          InvitacionService            DB
-      │                        │                       │                     │
-      │  GET /invitacion/token (frontend)              │                     │
-      │  GET /api/auth/invitacion/{token}              │                     │
-      │ ──────────────────────►│                       │                     │
-      │                        │  ObtenerInfoAsync     │                     │
-      │                        │ ─────────────────────►│                     │
-      │                        │                       │  GetByToken         │
-      │                        │                       │ ───────────────────►│
-      │                        │                       │  Usuario            │
-      │                        │                       │ ◄───────────────────│
-      │                        │  InfoInvitacionDto    │                     │
-      │ ◄──────────────────────│ ◄─────────────────────│                     │
-      │                        │                       │                     │
-      │  POST /api/auth/invitacion/aceptar             │                     │
-      │  { token, nuevaPassword }                      │                     │
-      │ ──────────────────────►│                       │                     │
-      │                        │  AceptarAsync(dto)    │                     │
-      │                        │ ─────────────────────►│                     │
-      │                        │                       │  GetByToken         │
-      │                        │                       │ ───────────────────►│
-      │                        │                       │  Valida estado y    │
-      │                        │                       │  vencimiento        │
-      │                        │                       │  Estado = Activo    │
-      │                        │                       │  Token = null       │
-      │                        │                       │  Password = nueva   │
-      │                        │                       │  SaveChanges        │
-      │                        │                       │ ───────────────────►│
-      │                        │                       │  UsuarioAutenticado │
-      │                        │ ◄─────────────────────│                     │
-      │                        │  JwtService.Generar   │                     │
-      │                        │  LoginResponseDto     │                     │
-      │  JWT + sesión          │                       │                     │
-      │ ◄──────────────────────│                       │                     │
+Admin Frontend     UsuariosController    UsuarioService       IEmailService       DB
+      │                    │                   │                    │              │
+      │  POST /api/usuarios│                   │                    │              │
+      │ ──────────────────►│                   │                    │              │
+      │                    │  CreateAsync(dto) │                    │              │
+      │                    │ ─────────────────►│                    │              │
+      │                    │                   │  GetByEmailAsync   │              │
+      │                    │                   │ ─────────────────────────────────►│
+      │                    │                   │  null / usuario    │              │
+      │                    │                   │ ◄─────────────────────────────────│
+      │                    │                   │                    │              │
+      │                    │                   │  AddAsync(usr)     │              │
+      │                    │                   │ ─────────────────────────────────►│
+      │                    │                   │  EnviarInvitacion* │              │
+      │                    │                   │ ──────────────────►│              │
+      │                    │  201 + USRDto     │                    │  email send  │
+      │ ◄──────────────────│ ◄─────────────────│                    │             │
 ```
 
 ---
@@ -450,31 +422,21 @@ Usuario Frontend        AuthController          InvitacionService            DB
 
 | Error | HTTP | Mensaje |
 |---|---|---|
-| Email ya existe en la sucursal | `409 Conflict` | `"Ya existe un usuario con el email '...' en esta sucursal."` |
+| Email ya existe en esta sucursal | `409 Conflict` | `"El usuario ya pertenece a esta sucursal."` |
 | Sucursal no encontrada | `400 Bad Request` | `"No se encontró la sucursal con id ..."` |
-| Permisos inválidos | `400 Bad Request` | `"Los siguientes permisos no son válidos: ..."` |
 
 ### Al consultar/aceptar token
 
 | Error | HTTP | Mensaje |
 |---|---|---|
-| Token no existe | `400 Bad Request` | `"El enlace de invitación no es válido."` |
-| Token ya fue usado | `400 Bad Request` | `"Esta invitación ya fue utilizada."` |
-| Token vencido | `400 Bad Request` | `"El enlace de invitación venció. Pedile al administrador que reenvíe la invitación."` |
-
-### Al reenviar
-
-| Error | HTTP | Mensaje |
-|---|---|---|
-| Usuario no en estado pendiente | `400 Bad Request` | `"Solo se puede reenviar la invitación a usuarios pendientes."` |
-| Usuario no encontrado | `404 Not Found` | `"No se encontró el usuario con id ..."` |
+| Token no existe o ya fue usado | `400 Bad Request` | `"El enlace de invitación no es válido."` |
+| Token vencido | `400 Bad Request` | `"El enlace venció. Pedile al administrador que reenvíe la invitación."` |
+| `nuevaPassword` null pero sin contraseña previa | `400 Bad Request` | `"Debés establecer una contraseña."` |
 
 ---
 
 ## Pendiente / TODO
 
-- [ ] **Hashing de contraseña**: reemplazar comparación directa por `BCrypt.Verify` / `BCrypt.HashPassword` (paquete `BCrypt.Net-Next`).
+- [ ] **Hashing de contraseña**: reemplazar asignación directa por `BCrypt.HashPassword` (paquete `BCrypt.Net-Next`).
 - [ ] **Rate limiting** en `POST /api/auth/invitacion/aceptar` para evitar fuerza bruta sobre tokens.
-- [ ] **Email de bienvenida** luego de activar la cuenta (opcional, post-activación).
 - [ ] **Expiración configurable** desde `appsettings.json` (`Invitacion:ExpirationDays`).
-- [ ] **Modo desarrollo**: implementar `ConsoleEmailService` que loguee el link en consola en lugar de enviar SMTP real.
