@@ -69,7 +69,11 @@ public class SuscripcionGuardTests
     [Fact]
     public async Task VerificarActiva_EstadoVencida_LanzaSuscripcionVencidaException()
     {
-        SetupSuscripcion(SuscripcionTestFactory.CrearSuscripcion(estado: EstadoSuscripcion.Vencida));
+        // FechaVencimiento debe estar más allá del período de gracia (3 días por defecto)
+        // para que el guard no devuelva sin lanzar
+        SetupSuscripcion(SuscripcionTestFactory.CrearSuscripcion(
+            estado: EstadoSuscripcion.Vencida,
+            fechaVencimiento: DateTime.UtcNow.AddDays(-10)));
 
         var act = () => _sut.VerificarActivaAsync(Guid.NewGuid());
 

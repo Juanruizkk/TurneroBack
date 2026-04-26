@@ -16,7 +16,9 @@ internal static class ServiceFactory
             new TurnoRepository(db),
             new UsuarioSucursalRolRepository(db),
             new HorarioLaboralRepository(db),
-            new UsuarioServicioRepository(db));
+            new UsuarioServicioRepository(db),
+            new ClienteRepository(db),
+            BuildTurnoService(db));
     }
 
     public static TurnoService BuildTurnoService(AppDbContext db)

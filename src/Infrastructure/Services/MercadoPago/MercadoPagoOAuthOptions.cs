@@ -19,4 +19,10 @@ public sealed class MercadoPagoOAuthOptions
     /// credenciales de sandbox. Solo activar en Development/testing.
     /// </summary>
     public bool TestMode { get; set; } = false;
+
+    /// <summary>
+    /// Secreto usado para firmar el parámetro 'state' del flujo OAuth con HMAC-SHA256.
+    /// Debe tener al menos 32 caracteres. Configurar via user-secrets o variable de entorno.
+    /// </summary>
+    public string StateSecret { get; set; } = string.Empty;
 }

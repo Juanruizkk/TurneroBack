@@ -37,7 +37,11 @@ public class RecuperacionContrasenaService
         _usuarioRepo.Update(usuario);
         await _usuarioRepo.SaveChangesAsync();
 
-        var link = $"{_frontendUrl.TrimEnd('/')}/reset-password?token={token}";
+        // B-04: usar fragment (#) en lugar de query param (?token=...).
+        // Los fragments nunca se envían al servidor en requests HTTP, no aparecen en
+        // access logs ni en headers Referer hacia terceros (analytics, CDN).
+        // El frontend lee: new URLSearchParams(window.location.hash.slice(1)).get('token')
+        var link = $"{_frontendUrl.TrimEnd('/')}/reset-password#token={token}";
         try
         {
             await _emailService.EnviarRecuperacionContrasenaAsync(

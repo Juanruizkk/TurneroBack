@@ -15,9 +15,10 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
         _dbSet = context.Set<T>();
     }
 
+    // FirstOrDefaultAsync respeta Global Query Filters (FindAsync los bypasea).
     public async Task<T?> GetByIdAsync(Guid id)
     {
-        return await _dbSet.FindAsync(id);
+        return await _dbSet.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id);
     }
 
     public async Task<IEnumerable<T>> GetAllAsync()

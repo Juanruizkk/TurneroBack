@@ -64,8 +64,11 @@ internal static class TurnoTestFactory
         Guid? servicioId = null,
         Guid? clienteId = null,
         Guid? sucursalId = null,
-        OrigenTurno origen = OrigenTurno.Administrativo)
+        OrigenTurno origen = OrigenTurno.Administrativo) // parámetro mantenido por compatibilidad
     {
+        // Nota: CreateTurnoDto ya no tiene Origen (se asigna server-side en el controller).
+        // El parámetro 'origen' se conserva para no romper llamadas existentes; el valor
+        // real se pasa directamente a TurnoService.CreateAsync(dto, origen).
         return new CreateTurnoDto
         {
             SucursalId      = sucursalId ?? Guid.NewGuid(),
@@ -73,7 +76,6 @@ internal static class TurnoTestFactory
             ServicioId      = servicioId ?? Guid.NewGuid(),
             ProfesionalId   = Guid.NewGuid(),
             FechaHoraInicio = DateTime.UtcNow.AddDays(1),
-            Origen          = origen
         };
     }
 

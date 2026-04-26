@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Usuario;
 using TurneroApp.Application.Exceptions;
@@ -8,6 +9,7 @@ namespace TurneroApp.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class UsuariosController : ControllerBase
 {
     private readonly UsuarioService  _usuarioService;
@@ -97,6 +99,35 @@ public class UsuariosController : ControllerBase
                 return NotFound(new { message = ex.Message });
 
             return Conflict(new { message = ex.Message });
+        }
+    }
+
+    // PUT /api/usuarios/{id}/rol-estado-permisos
+    /// <summary>
+    /// Actualiza el rol, estado y permisos de la membresía de un usuario.
+    /// Solo accesible por usuarios con rol Administrativo u Owner.
+    /// </summary>
+    [HttpPut("{id:guid}/rol-estado-permisos")]
+    [Authorize(Roles = "Administrativo")]
+    [ProducesResponseType(typeof(UsuarioResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateRolEstadoPermisos(Guid id, [FromBody] UpdateRolEstadoPermisosDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var usuario = await _usuarioService.UpdateRolEstadoPermisosAsync(id, dto);
+            return Ok(usuario);
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message.Contains("No se encontró"))
+                return NotFound(new { message = ex.Message });
+
+            return BadRequest(new { message = ex.Message });
         }
     }
 

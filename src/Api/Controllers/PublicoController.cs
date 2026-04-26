@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using TurneroApp.Application.DTOs.Publico;
+using TurneroApp.Application.Exceptions;
 using TurneroApp.Application.Services;
 
 namespace TurneroApp.Api.Controllers;
@@ -9,10 +11,12 @@ namespace TurneroApp.Api.Controllers;
 public class PublicoController : ControllerBase
 {
     private readonly PublicoService _service;
+    private readonly ILogger<PublicoController> _logger;
 
-    public PublicoController(PublicoService service)
+    public PublicoController(PublicoService service, ILogger<PublicoController> logger)
     {
         _service = service;
+        _logger  = logger;
     }
 
 
@@ -28,6 +32,68 @@ public class PublicoController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Crea un turno desde el booking público (sin autenticación).
+    /// Busca o crea el cliente por teléfono y luego crea el turno.
+    /// </summary>
+    [HttpPost("{slug}/reservar")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Reservar(string slug, [FromBody] ReservarTurnoPublicoDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        try
+        {
+            var perfil = await _service.ObtenerPerfilAsync(slug);
+            var turno  = await _service.ReservarAsync(perfil.SucursalId, dto);
+            return Ok(turno);
+        }
+        catch (SuscripcionVencidaException ex)
+        {
+            return StatusCode(402, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("conflicto") || ex.Message.Contains("horario"))
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Crea un turno desde el booking público usando sucursalId directo (legacy / VITE_SUCURSAL_ID).
+    /// </summary>
+    [HttpPost("reservar")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ReservarPorId([FromQuery] Guid sucursalId, [FromBody] ReservarTurnoPublicoDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        try
+        {
+            var turno = await _service.ReservarAsync(sucursalId, dto);
+            return Ok(turno);
+        }
+        catch (SuscripcionVencidaException ex)
+        {
+            return StatusCode(402, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("conflicto") || ex.Message.Contains("horario"))
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 
@@ -51,7 +117,9 @@ public class PublicoController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = ex.Message, detail = ex.InnerException?.Message });
+            _logger.LogError(ex, "Error al obtener slots para slug={Slug} fecha={Fecha} servicioId={ServicioId}",
+                slug, fecha, servicioId);
+            return StatusCode(500, new { message = "Error interno al obtener disponibilidad. Intente más tarde." });
         }
     }
 }

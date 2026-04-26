@@ -21,5 +21,5 @@ public class UpdateSucursalDto
     [MaxLength(150)]
     public string Email { get; set; } = string.Empty;
 
-    public bool Activa { get; set; }
+    // Activa se gestiona vía SuperAdmin; no exponer en el PUT de sucursal
 }

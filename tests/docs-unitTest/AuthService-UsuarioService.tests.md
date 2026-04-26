@@ -6,7 +6,7 @@ Tests que verifican la lógica de autenticación y alta de usuarios de forma com
 
 **Proyecto:** `tests/TurneroApp.Tests/`
 **Framework:** xUnit 2.6 + Moq 4.20 + FluentAssertions 6.12
-**Cobertura:** `AuthServiceTests` (6) + `UsuarioServiceCreateTests` (8 — incluye límites de plan y guard de suscripción) + `UsuarioServiceDeleteTests` + `UsuarioServiceSuscripcionTests` (2)
+**Cobertura:** `AuthServiceTests` (7 — incluye C-05) + `UsuarioServiceCreateTests` (8 — incluye límites de plan y guard de suscripción) + `UsuarioServiceDeleteTests` + `UsuarioServiceSuscripcionTests` (2)
 
 ---
 
@@ -111,6 +111,7 @@ Las credenciales SA (`"sa@test.com"` / `"SuperPass!"`) se pasan directamente com
 | Test | Qué verifica |
 |---|---|
 | `ValidarAsync_SuperAdmin_CredencialesCorrectas_RetornaDirectamente` | Email y password coinciden con la config SA → `resultado.Usuario!.EsSuperAdmin == true`; ningún repositorio es consultado |
+| `ValidarAsync_SuperAdmin_PasswordIncorrecta_LanzaUnauthorized` *(C-05)* | Email SA correcto pero password incorrecto → lanza `UnauthorizedAccessException`. Verifica que el servicio usa BCrypt (tiempo constante) y no el operador `==` (vulnerable a timing attacks) |
 
 ### Casos de credenciales inválidas
 
@@ -183,7 +184,8 @@ Las credenciales SA (`"sa@test.com"` / `"SuperPass!"`) se pasan directamente com
 |---|---|
 | Suscripción vencida bloquea antes de validar permisos | `CreateAsync_SuscripcionVencida_LanzaSuscripcionVencidaException` |
 | Suscripción vencida no llega a persistir membresía | `CreateAsync_SuscripcionVencida_NoLlamaAddAsync` |
-| El Super Admin bypasea toda la lógica de repositorios | `ValidarAsync_SuperAdmin_*` |
+| El Super Admin bypasea toda la lógica de repositorios | `ValidarAsync_SuperAdmin_CredencialesCorrectas_*` |
+| SA con contraseña incorrecta lanza `UnauthorizedAccessException` *(C-05)* | `ValidarAsync_SuperAdmin_PasswordIncorrecta_LanzaUnauthorized` |
 | Credenciales incorrectas siempre lanzan `UnauthorizedAccessException` | `ValidarAsync_EmailNoExiste`, `ValidarAsync_PasswordIncorrecta` |
 | Sin sucursales activas no se puede iniciar sesión | `ValidarAsync_SinSucursalesActivas` |
 | 1 sucursal → login directo sin paso extra | `ValidarAsync_UnaSucursalActiva` |

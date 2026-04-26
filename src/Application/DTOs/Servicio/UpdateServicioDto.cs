@@ -15,5 +15,5 @@ public class UpdateServicioDto
     public decimal? ValorSena { get; set; }
     public ModalidadPrestacion ModalidadPrestacion { get; set; }
     public TipoServicio TipoServicio { get; set; }
-    public bool Activo { get; set; }
+    // Activo se gestiona con DELETE /api/servicios/{id} (DesactivarAsync), no aquí
 }

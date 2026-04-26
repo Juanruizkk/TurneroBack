@@ -33,6 +33,9 @@ public class ConfiguracionSucursal
     /// </summary>
     public string? MensajeWhatsApp3h { get; set; }
 
+    /// <summary>Token de concurrencia optimista. Mapeado a la columna xmin de PostgreSQL (auto-incrementa en cada UPDATE).</summary>
+    public uint RowVersion { get; set; }
+
     // Navigation properties
     public Sucursal Sucursal { get; set; } = null!;
 }

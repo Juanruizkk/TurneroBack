@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Cliente;
+using TurneroApp.Application.Exceptions;
 using TurneroApp.Application.Services;
 
 namespace TurneroApp.Api.Controllers;
@@ -7,17 +9,20 @@ namespace TurneroApp.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class ClientesController : ControllerBase
 {
     private readonly ClienteService _clienteService;
+    private readonly TurnoService _turnoService;
 
-    public ClientesController(ClienteService clienteService)
+    public ClientesController(ClienteService clienteService, TurnoService turnoService)
     {
         _clienteService = clienteService;
+        _turnoService = turnoService;
     }
 
     /// <summary>
-    /// Obtiene clientes. Puede filtrarse por sucursal, teléfono o email.
+    /// Obtiene clientes activos. Puede filtrarse por sucursal, teléfono o email.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<ClienteResponseDto>), StatusCodes.Status200OK)]
@@ -56,6 +61,17 @@ public class ClientesController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene clientes archivados de una sucursal.
+    /// </summary>
+    [HttpGet("archivados")]
+    [ProducesResponseType(typeof(IEnumerable<ClienteResponseDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetArchivados([FromQuery] Guid sucursalId)
+    {
+        var lista = await _clienteService.GetArchivedBySucursalAsync(sucursalId);
+        return Ok(lista);
+    }
+
+    /// <summary>
     /// Obtiene un cliente por Id.
     /// </summary>
     [HttpGet("{id:guid}")]
@@ -69,6 +85,31 @@ public class ClientesController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene la ficha completa de un cliente: resumen, historial y próximos turnos.
+    /// </summary>
+    [HttpGet("{id:guid}/ficha")]
+    [ProducesResponseType(typeof(ClienteFichaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetFicha(Guid id)
+    {
+        var ficha = await _clienteService.GetFichaAsync(id);
+        return ficha is null ? NotFound() : Ok(ficha);
+    }
+
+    /// <summary>
+    /// Obtiene el token de gestión de un turno para un cliente.
+    /// </summary>
+    [HttpGet("{id:guid}/turno-link/{turnoId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetLinkGestionTurno(Guid id, Guid turnoId)
+    {
+        var turno = await _turnoService.GetByIdAsync(turnoId);
+        if (turno is null || turno.ClienteId != id) return NotFound();
+        return Ok(new { token = turno.TokenGestion, turnoId });
+    }
+
+    /// <summary>
     /// Crea un nuevo cliente.
     /// </summary>
     [HttpPost]
@@ -78,8 +119,15 @@ public class ClientesController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        var cliente = await _clienteService.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = cliente.Id }, cliente);
+        try
+        {
+            var cliente = await _clienteService.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = cliente.Id }, cliente);
+        }
+        catch (InvalidOperationException e)
+        {
+            return BadRequest(new { message = e.Message });
+        }
     }
 
     /// <summary>
@@ -93,21 +141,73 @@ public class ClientesController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        var cliente = await _clienteService.UpdateAsync(id, dto);
-        if (cliente is null) return NotFound(new { message = $"Cliente con Id {id} no encontrado." });
-        return Ok(cliente);
+        try
+        {
+            var cliente = await _clienteService.UpdateAsync(id, dto);
+            if (cliente is null) return NotFound(new { message = $"Cliente con Id {id} no encontrado." });
+            return Ok(cliente);
+        }
+        catch (InvalidOperationException e)
+        {
+            return BadRequest(new { message = e.Message });
+        }
     }
 
     /// <summary>
-    /// Elimina un cliente.
+    /// Archiva un cliente (soft delete). El cliente deja de aparecer en búsquedas y selectors.
+    /// </summary>
+    [HttpPost("{id:guid}/archivar")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Archivar(Guid id)
+    {
+        try
+        {
+            await _clienteService.ArchivarCliente(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException e) { return NotFound(new { message = e.Message }); }
+    }
+
+    /// <summary>
+    /// Desarchiva un cliente previamente archivado.
+    /// </summary>
+    [HttpPost("{id:guid}/desarchivar")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Desarchivar(Guid id)
+    {
+        try
+        {
+            await _clienteService.DesarchivarCliente(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException e) { return NotFound(new { message = e.Message }); }
+    }
+
+    /// <summary>
+    /// Elimina permanentemente un cliente. Solo permitido si no tiene historial operativo ni pagos.
     /// </summary>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var deleted = await _clienteService.DeleteAsync(id);
-        if (!deleted) return NotFound(new { message = $"Cliente con Id {id} no encontrado." });
-        return NoContent();
+        try
+        {
+            await _clienteService.EliminarCliente(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException e) { return NotFound(new { message = e.Message }); }
+        catch (ClienteNoSePuedeEliminarException e) { return Conflict(new { message = e.Message }); }
     }
+
+    /// <summary>
+    /// Stub: envío de recordatorio por WhatsApp (pendiente de integración).
+    /// </summary>
+    [HttpPost("{id:guid}/recordatorio-whatsapp")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult EnviarRecordatorioWhatsApp(Guid id)
+        => Ok(new { message = "Función de WhatsApp pendiente de integración.", clienteId = id });
 }

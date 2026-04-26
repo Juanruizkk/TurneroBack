@@ -1,7 +1,7 @@
 # TurneroApp.IntegrationTests
 
-Tests de integración que verifican lógica de negocio y aislamiento multi-tenant contra una base de datos PostgreSQL real.
-A diferencia de los tests unitarios (que mockean repositorios), estos tests usan repositorios reales y validan que las queries EF Core funcionan correctamente en la DB.
+Tests de integración que verifican lógica de negocio, aislamiento multi-tenant y seguridad contra una base de datos PostgreSQL real.
+A diferencia de los tests unitarios (que mockean repositorios), estos tests usan repositorios reales y validan que las queries EF Core funcionan correctamente.
 
 ---
 
@@ -23,7 +23,8 @@ dotnet test tests/TurneroApp.IntegrationTests -v normal
 # Todos los tests (unitarios + integración)
 dotnet test TurneroApp.sln -v normal
 
-# Filtrar por nombre
+# Filtrar por suite
+dotnet test tests/TurneroApp.IntegrationTests --filter "Security"
 dotnet test tests/TurneroApp.IntegrationTests --filter "CreateAsync"
 ```
 
@@ -33,16 +34,34 @@ Testcontainers levanta un contenedor `postgres:16-alpine` automáticamente, apli
 
 ## Suites de tests
 
+### Tests de servicio — `PostgresFixture`
+
 | Archivo | Tests | Documenta |
 |---|---|---|
 | `TurnoServiceIntegrationTests.cs` | 3 | Creación de turnos: límite de plan, conflicto de horario, happy path |
 | `SlotsDisponiblesIntegrationTests.cs` | 6 | Algoritmo de slots: franjas, conflictos, duración, buffer, horario laboral |
 | `MultiTenantAislamientoIntegrationTests.cs` | 5 | Aislamiento de datos entre sucursales |
+| `ConcurrenciaOptimistaTests.cs` | 2 | RowVersion B-02: dos contextos editando el mismo registro simultáneamente |
+| `QueryFiltersTests.cs` | 5 | Global Query Filters M-04/M-05: activo/inactivo en GetAllAsync y GetByIdAsync |
+
+### Tests HTTP — `HttpTestFixture` (pipeline completo)
+
+| Archivo | Tests | Hallazgo | Documenta |
+|---|---|---|---|
+| `AutorizacionHttpTests.cs` | 8 | C-02, A-01, A-06 | 401/403 en endpoints protegidos, campo Origen server-side |
+| `IdorHttpTests.cs` | 2 | A-02 | IDOR entre sucursales, bypass SuperAdmin |
+| `RateLimitingTests.cs` | 2 | M-06 | Rate limiting en /api/auth/login |
+| `ConflictoHorarioConcurrenteTests.cs` | 1 | M-03 | Race condition TOCTOU en creación de turnos |
+
+**Total: 34 tests de integración**
 
 **Documentación detallada por suite:**
 - [turno-service.md](turno-service.md) — `TurnoServiceIntegrationTests`
 - [slots-disponibles.md](slots-disponibles.md) — `SlotsDisponiblesIntegrationTests`
 - [multi-tenant-aislamiento.md](multi-tenant-aislamiento.md) — `MultiTenantAislamientoIntegrationTests`
+- [concurrencia-optimista.md](concurrencia-optimista.md) — `ConcurrenciaOptimistaTests`
+- [query-filters.md](query-filters.md) — `QueryFiltersTests`
+- [security-http.md](security-http.md) — Tests HTTP de seguridad (AutorizacionHttpTests, IdorHttpTests, RateLimitingTests, ConflictoHorarioConcurrenteTests)
 
 ---
 
@@ -52,8 +71,12 @@ Testcontainers levanta un contenedor `postgres:16-alpine` automáticamente, apli
 tests/TurneroApp.IntegrationTests/
   TurneroApp.IntegrationTests.csproj
   Infrastructure/
-    PostgresFixture.cs               ← Testcontainers + migrations + Respawn
-    IntegrationTestBase.cs           ← clase base: reset DB + DbContext fresco por test
+    PostgresFixture.cs               ← Testcontainers + migrations + Respawn (service tests)
+    IntegrationTestBase.cs           ← base para service tests: reset DB + DbContext fresco
+    HttpTestFixture.cs               ← WebApplicationFactory<Program> + Testcontainers (HTTP tests)
+    HttpIntegrationTestBase.cs       ← base para HTTP tests: reset DB + HttpClient fresco
+    TestConstants.cs                 ← JWT secret y credenciales SA de test
+    TokenHelper.cs                   ← generación de JWT firmados para tests HTTP
   Helpers/
     SeedHelper.cs                    ← seed de entidades (respeta orden FK)
     ServiceFactory.cs                ← construye servicios con repos reales
@@ -61,26 +84,24 @@ tests/TurneroApp.IntegrationTests/
     TurnoServiceIntegrationTests.cs          ← 3 tests
     SlotsDisponiblesIntegrationTests.cs      ← 6 tests
     MultiTenantAislamientoIntegrationTests.cs ← 5 tests
+    ConcurrenciaOptimistaTests.cs            ← 2 tests (B-02)
+    QueryFiltersTests.cs                     ← 5 tests (M-04, M-05)
+  Security/
+    AutorizacionHttpTests.cs                 ← 8 tests HTTP (C-02, A-01, A-06)
+    IdorHttpTests.cs                         ← 2 tests HTTP (A-02)
+    RateLimitingTests.cs                     ← 2 tests HTTP (M-06)
+    ConflictoHorarioConcurrenteTests.cs      ← 1 test HTTP (M-03)
 ```
 
 ---
 
-## Arquitectura de la infraestructura de tests
+## Dos infraestructuras de tests
 
-### `PostgresFixture` — Ciclo de vida del contenedor
+El proyecto tiene dos infraestructuras separadas según el tipo de test:
 
-`PostgresFixture` implementa `IAsyncLifetime` y es compartido entre todos los tests de una clase vía `IClassFixture<PostgresFixture>`.
+### Infraestructura de servicio — `PostgresFixture` + `IntegrationTestBase`
 
-**Flujo de `InitializeAsync`:**
-1. Activa `Npgsql.EnableLegacyTimestampBehavior` (ver [Problemas conocidos](#problemas-conocidos-y-sus-fixes))
-2. Levanta el contenedor `postgres:16-alpine` con Testcontainers
-3. Aplica todas las EF Core migrations con `db.Database.MigrateAsync()` usando un `NullTenantContext`
-4. Abre una conexión `NpgsqlConnection` persistente
-5. Inicializa **Respawn** apuntando al schema `public`
-
-**Flujo de `DisposeAsync`:**
-1. Cierra la conexión Npgsql
-2. Destruye el contenedor Docker
+Para tests que invocan servicios de aplicación directamente (sin HTTP).
 
 ```
 [Suite de tests]
@@ -92,29 +113,47 @@ PostgresFixture.InitializeAsync()
   ├── MigrateAsync()        ← migrations reales, con NullTenantContext
   └── Respawner.CreateAsync ← snapshot del estado inicial
 
-      │  (se comparte entre todos los tests de la clase)
+      │  (compartido entre todos los tests de la clase)
       ▼
 
-[Test 1] → ResetAsync() → CreateDbContext() → ejecuta → verifica
-[Test 2] → ResetAsync() → CreateDbContext() → ejecuta → verifica
-[Test 3] → ResetAsync() → CreateDbContext() → ejecuta → verifica
-
-      │
-      ▼
-PostgresFixture.DisposeAsync()
-  ├── connection.DisposeAsync()
-  └── container.DisposeAsync()   ← contenedor destruido
+[Test N] → ResetAsync() → CreateDbContext() → ServiceFactory.Build*() → verifica
 ```
 
-### `IntegrationTestBase` — Aislamiento entre tests
+**`IntegrationTestBase`** expone:
+- `Db` — `AppDbContext` con `NullTenantContext` (query filters desactivados)
+- `Fixture` — acceso al `PostgresFixture` compartido
 
-Cada test hereda de `IntegrationTestBase`, que en `InitializeAsync`:
-1. Llama a `Fixture.ResetAsync()` — Respawn trunca todas las tablas (excepto `__EFMigrationsHistory`)
-2. Llama a `Fixture.CreateDbContext()` — crea un `AppDbContext` nuevo con `NullTenantContext`
+### Infraestructura HTTP — `HttpTestFixture` + `HttpIntegrationTestBase`
 
-Esto garantiza que cada test arranca con la DB vacía y su propio contexto, replicando el comportamiento de producción (cada request HTTP tiene su propio `DbContext`).
+Para tests que envían requests HTTP reales al pipeline completo de ASP.NET Core.
 
-> El `NullTenantContext` (con `SucursalId = null`) desactiva los global query filters multi-tenant. Sin él, EF Core lanza `NullReferenceException` al evaluar `_tenantContext.SucursalId.HasValue` durante la compilación del árbol de expresiones LINQ.
+```
+[Suite de tests — colección "HttpTests"]
+      │
+      ▼
+HttpTestFixture.InitializeAsync()
+  ├── StartAsync()          ← Docker pull + container start
+  ├── MigrateAsync()        ← migrations vía DI scope
+  └── Respawner.CreateAsync
+
+      │  (compartido entre todos los tests de la colección "HttpTests")
+      ▼
+
+[Test N] → ResetDbAsync() → CreateClient() → CreateDbContext() → HTTP request → verifica
+```
+
+**`HttpIntegrationTestBase`** expone:
+- `Client` — `HttpClient` configurado contra el TestServer
+- `Db` — `AppDbContext` directo (seed y asserts fuera del pipeline)
+- `Factory` — acceso al `HttpTestFixture` para crear clientes adicionales
+- `UsarToken(token)` / `SinToken()` — helpers de autenticación
+
+**`TokenHelper`** genera JWTs firmados con `TestConstants.JwtSecret` para simular:
+- `TokenHelper.GenerarToken()` — usuario normal
+- `TokenHelper.ParaSucursal(sucursalId)` — usuario de una sucursal específica
+- `TokenHelper.SuperAdmin()` — super admin
+
+**`RateLimitTestFixture`** hereda de `HttpTestFixture` y preserva el rate limiter de producción para los tests de M-06.
 
 ---
 
@@ -122,21 +161,24 @@ Esto garantiza que cada test arranca con la DB vacía y su propio contexto, repl
 
 ### `SeedHelper`
 
-Métodos estáticos para insertar entidades en la DB antes de cada test. Cada método hace `SaveChangesAsync` individualmente para respetar el orden de FK constraints.
+Métodos estáticos para insertar entidades en la DB antes de cada test.
 
-| Método | Entidad creada | Parámetros configurables |
+| Método | Entidad | Parámetros configurables |
 |---|---|---|
 | `SeedPlanAsync` | `Plan` | `maxTurnosMes`, `maxUsuarios`, `maxServicios` |
 | `SeedSucursalAsync` | `Sucursal` | — |
 | `SeedSuscripcionAsync` | `SucursalSuscripcion` | `estado`, `diasVencimiento` |
-| `SeedClienteAsync` | `Cliente` | — |
-| `SeedServicioAsync` | `Servicio` | `duracionAgendaMin` |
+| `SeedClienteAsync` | `Cliente` | `activo` (bool, default true) |
+| `SeedServicioAsync` | `Servicio` | `duracionAgendaMin`, `activo` (bool) |
 | `SeedProfesionalAsync` | `Usuario` | — |
+| `SeedProfesionalConUSRAsync` | `Usuario` + `UsuarioSucursalRol` | `sucursalId` |
 | `SeedTurnoAsync` | `Turno` | `fechaHoraInicio`, `duracionMin` |
 | `SeedConfiguracionAsync` | `ConfiguracionSucursal` | `horariosJson`, `buffer`, `anticipacionMin` |
 | `SeedUsuarioSucursalRolAsync` | `UsuarioSucursalRol` | `rol`, `estado` |
 | `SeedHorarioLaboralAsync` | `HorarioLaboral` | `dia`, `desde`, `hasta` |
 | `HorarioJson` *(helper)* | `string` JSON | `diaNombre`, `apertura`, `cierre` |
+
+> **Nota:** Los tests HTTP que crean turnos usan `SeedProfesionalConUSRAsync` (inserta `Usuario` + `UsuarioSucursalRol`) porque `TurnoService` requiere que el profesional sea miembro activo de la sucursal. `SeedProfesionalAsync` solo inserta el `Usuario`.
 
 **Orden de seed completo (requerido por FK constraints):**
 ```
@@ -150,99 +192,13 @@ Usuario (profesional)
 → Turno (referencia Sucursal + Cliente + Servicio + Usuario)
 ```
 
-> **Nota:** `SeedProfesionalAsync` inserta un `Usuario` real porque `Turno.ProfesionalId` tiene FK con `OnDelete(Restrict)` hacia `usuarios.Id`. `UsuarioSucursalRol` es necesario para que `PublicoService` reconozca al usuario como profesional activo de la sucursal.
-
 ### `ServiceFactory`
 
-Construye servicios con **repositorios reales** (backed por la DB del contenedor) y **side-effects mockeados** (email y notificaciones).
+Construye servicios con **repositorios reales** y **side-effects mockeados**.
 
-**`BuildTurnoService(db)`**
-```csharp
-// Repos reales
-TurnoRepository, ServicioRepository, ClienteRepository,
-SucursalRepository, ComentarioTurnoRepository, SuscripcionRepository
-// Side-effects mockeados
-Mock.Of<IEmailService>(), Mock.Of<ITurnoNotificacionService>()
-```
-`horarioRepo` y `usuarioServicioRepo` se omiten intencionalmente: los tests de `TurnoService` no cubren validación de horario laboral ni servicios asignados.
+**`BuildTurnoService(db)`** — repos reales: `TurnoRepository, ServicioRepository, ClienteRepository, SucursalRepository, ComentarioTurnoRepository, SuscripcionRepository`. Side-effects mockeados: email, notificaciones.
 
-**`BuildPublicoService(db)`**
-```csharp
-// Todos los repos reales (sin mocks):
-SucursalRepository, ServicioRepository, TurnoRepository,
-UsuarioSucursalRolRepository, HorarioLaboralRepository, UsuarioServicioRepository
-```
-`PublicoService` no tiene side-effects externos (no envía emails ni notificaciones), por eso no requiere mocks.
-
----
-
-## Tests
-
-### Clase: `TurnoServiceIntegrationTests`
-
-**Servicio bajo test:** `TurnoService.CreateAsync`
-
----
-
-#### Test 1 — Límite mensual del plan
-
-```
-CreateAsync_CuandoLimiteMensualAlcanzado_LanzaInvalidOperationException
-```
-
-**Escenario:** El plan tiene `MaxTurnosMes = 2` y ya existen 2 turnos en el mes actual. Se intenta crear un 3er turno.
-
-**Arrange:**
-- Plan con `maxTurnosMes: 2`
-- Suscripción activa (PruebActiva, vence en 30 días)
-- 2 turnos ya persistidos en la DB para el mes en curso
-
-**Assert:**
-- Lanza `InvalidOperationException` con mensaje `*Actualizá tu suscripción*`
-- La DB sigue teniendo exactamente 2 turnos (el 3er no se persistió)
-
----
-
-#### Test 2 — Conflicto de horario
-
-```
-CreateAsync_CuandoConflictoHorario_LanzaInvalidOperationException
-```
-
-**Escenario:** Existe un turno de 10:00 a 10:30. Se intenta crear otro turno a las 10:15 (que solapa el existente).
-
-**Arrange:**
-- Plan sin límite de turnos
-- Turno existente: `10:00 – 10:30` (30 min)
-- Nuevo turno solicitado: `10:15` (se superpondría)
-
-**Assert:**
-- Lanza `InvalidOperationException` con mensaje `*ya tiene un turno en el horario seleccionado*`
-- La DB sigue teniendo exactamente 1 turno
-
----
-
-#### Test 3 — Happy path / Persistencia real
-
-```
-CreateAsync_CuandoDatosValidos_PersisteTurnoConCamposCorrectos
-```
-
-**Escenario:** Todos los datos son válidos. Se verifica que el turno se persiste correctamente en PostgreSQL.
-
-**Arrange:**
-- Plan sin límite, suscripción activa
-- Servicio de 45 minutos de duración
-- Inicio: `2026-07-20 09:00 UTC`
-
-**Assert sobre el DTO de respuesta:**
-- `result` no es null
-- `result.ClienteNombre` no está vacío
-
-**Assert sobre la DB (persistencia real):**
-- `ClienteId`, `ServicioId`, `ProfesionalId` coinciden con los seeds
-- `FechaHoraFin = 09:45 UTC` (inicio + 45 min calculado por el servicio)
-- `TokenGestion` no está vacío
+**`BuildPublicoService(db)`** — todos los repos reales, sin mocks (el servicio no tiene side-effects externos).
 
 ---
 
@@ -252,6 +208,9 @@ CreateAsync_CuandoDatosValidos_PersisteTurnoConCamposCorrectos
 |---|---|---|
 | `Testcontainers.PostgreSql` | 3.10.0 | Levanta contenedor PostgreSQL en tests |
 | `Respawn` | 6.2.1 | Trunca tablas entre tests (reset rápido) |
+| `Microsoft.AspNetCore.Mvc.Testing` | 8.0.0 | WebApplicationFactory para tests HTTP |
+| `Microsoft.IdentityModel.Tokens` | 8.0.2 | Generación de JWT en TokenHelper |
+| `System.IdentityModel.Tokens.Jwt` | 8.0.2 | Generación de JWT en TokenHelper |
 | `xunit` | 2.6.2 | Framework de tests |
 | `FluentAssertions` | 6.12.0 | Assertions legibles |
 | `Moq` | 4.20.70 | Mock de side-effects (email, notificaciones) |
@@ -259,38 +218,25 @@ CreateAsync_CuandoDatosValidos_PersisteTurnoConCamposCorrectos
 
 ---
 
-## Decisiones de diseño
-
-| Decisión | Motivo |
-|---|---|
-| Testcontainers en lugar de SQLite | Las queries usan tipos y comportamientos específicos de PostgreSQL (ej: overlapping de rangos de fechas). SQLite no garantiza el mismo comportamiento. |
-| Respawn en lugar de recrear la DB | Recrear el schema completo por test sería muy lento. Respawn trunca las tablas en milisegundos reutilizando el mismo contenedor. |
-| Un `AppDbContext` por test con `NullTenantContext` | Replica el ciclo de vida de producción y evita `NullReferenceException` en los global query filters multi-tenant. |
-| `horarioRepo` y `usuarioServicioRepo` omitidos | Los 3 tests se focalizan en límite de plan, conflicto de horario y persistencia. Incluir validaciones de horario laboral requeriría seed adicional complejo sin agregar valor a estos escenarios. |
-| Side-effects (email, notificaciones) mockeados | Son efectos externos irrelevantes para verificar la lógica de negocio y persistencia de datos. |
-| `EnableLegacyTimestampBehavior = true` | Las columnas `FechaHoraInicio`, `FechaHoraFin` y `FechaCreacion` de `turnos` son `timestamp without time zone`. Npgsql 8 rechaza `DateTimeKind.Utc` en esas columnas; el switch legacy permite escribirlas sin cambiar las entidades ni las migrations. |
-
----
-
 ## Problemas conocidos y sus fixes
 
 ### Migration duplicada — `column already exists`
 
-**Síntoma:** `Npgsql.PostgresException : 42701: column "MensajeWhatsApp24h" of relation "configuraciones_sucursal" already exists` al correr `MigrateAsync()`.
+**Síntoma:** `Npgsql.PostgresException : 42701: column "MensajeWhatsApp24h" already exists` al correr `MigrateAsync()`.
 
-**Causa:** `20260316150855_AgregarPlantillasWhatsApp` y `20260318152628_AddMercadoPagoFields` eran copias exactas: ambas intentaban agregar las columnas `MensajeWhatsApp24h` y `MensajeWhatsApp3h`. En la DB local nunca falló porque EF consulta `__EFMigrationsHistory` y saltea las ya aplicadas. En el contenedor limpio de Testcontainers ambas se ejecutan en orden y la segunda falla.
+**Causa:** `20260316150855_AgregarPlantillasWhatsApp` y `20260318152628_AddMercadoPagoFields` eran copias exactas. En la DB local no falla (EF saltea las ya aplicadas). En el contenedor limpio ambas se ejecutan en orden.
 
-**Fix aplicado:** El `Up()` de `AddMercadoPagoFields` se dejó vacío (no-op). No se eliminó el archivo porque ya está registrado en `__EFMigrationsHistory` de la DB de producción — borrarlo rompería el historial allí.
+**Fix:** El `Up()` de `AddMercadoPagoFields` se dejó vacío (no-op).
 
 ---
 
 ### `NullReferenceException` en query filter multi-tenant
 
-**Síntoma:** `System.NullReferenceException` en `lambda_method(Closure, QueryContext)` dentro de `SuscripcionRepository.GetBySucursalAsync`.
+**Síntoma:** `System.NullReferenceException` en `lambda_method(Closure, QueryContext)` dentro de los repositorios.
 
-**Causa:** `AppDbContext` fue creado sin pasar un `ITenantContext`. El global query filter de `SucursalSuscripcion` contiene `_tenantContext == null || !_tenantContext.SucursalId.HasValue || ...`. EF Core 8 compila el filtro a un delegado IL; cuando ejecuta el delegado, intenta acceder a `_tenantContext.SucursalId` aunque `_tenantContext` sea `null`, lo que provoca el `NullReferenceException`.
+**Causa:** `AppDbContext` creado sin `ITenantContext`. EF Core 8 compila los query filters a delegados IL que acceden a `_tenantContext.SucursalId` aunque sea `null`.
 
-**Fix aplicado:** `PostgresFixture.CreateDbContext()` ahora pasa un `NullTenantContext` (stub interno con `SucursalId = null`). Esto hace que el filtro evalúe `!_tenantContext.SucursalId.HasValue → true` y deje pasar todos los registros sin filtrar por sucursal.
+**Fix:** `PostgresFixture.CreateDbContext()` y `HttpTestFixture.CreateDbContext()` pasan un `NullTenantContext` (stub interno con `SucursalId = null`). Esto hace que el filtro evalúe `!SucursalId.HasValue → true` y deje pasar todos los registros.
 
 ---
 
@@ -298,6 +244,16 @@ CreateAsync_CuandoDatosValidos_PersisteTurnoConCamposCorrectos
 
 **Síntoma:** `System.ArgumentException` al hacer `SaveChangesAsync` en `SeedTurnoAsync`.
 
-**Causa:** Las columnas `FechaHoraInicio`, `FechaHoraFin` y `FechaCreacion` de la tabla `turnos` están configuradas como `timestamp without time zone` (sin zona horaria). Npgsql 8 rechaza escribir `DateTime` con `Kind=Utc` en esas columnas, ya que considera que sería una pérdida silenciosa de información de zona.
+**Causa:** Las columnas de fecha de `turnos` son `timestamp without time zone`. Npgsql 8 rechaza `DateTime` con `Kind=Utc` en esas columnas.
 
-**Fix aplicado:** En `PostgresFixture.InitializeAsync()` se activa el switch `AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true)` antes de cualquier operación con la DB. Esto restaura el comportamiento de Npgsql 6 donde `DateTimeKind` se ignoraba al escribir en columnas `timestamp`.
+**Fix:** En ambos fixtures se activa `AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true)` antes de cualquier operación con la DB.
+
+---
+
+### `public partial class Program` requerido
+
+**Síntoma:** `xUnit1000: Test classes must be public` + `CS0060: accessibility mismatch`.
+
+**Causa:** Las top-level statements en `Program.cs` generan una clase `internal Program`. `WebApplicationFactory<Program>` no puede usarse en clases `public` si `Program` es `internal`.
+
+**Fix:** Al final de `Program.cs` se agregó `public partial class Program { }`, que declara explícitamente `Program` como `public`.

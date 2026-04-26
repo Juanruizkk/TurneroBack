@@ -248,7 +248,7 @@ public class TurnoServiceCreateTests
 
         SetupCrearOk(servicio, cliente, sucursal);
 
-        var result = await _sut.CreateAsync(dto);
+        var result = await _sut.CreateAsync(dto, OrigenTurno.Administrativo);
 
         result.Estado.Should().Be(EstadoTurno.Confirmado);
     }

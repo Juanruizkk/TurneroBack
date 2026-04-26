@@ -19,6 +19,9 @@ public class Servicio
     public TipoServicio TipoServicio { get; set; }
     public bool Activo { get; set; } = true;
 
+    /// <summary>Token de concurrencia optimista. Mapeado a la columna xmin de PostgreSQL (auto-incrementa en cada UPDATE).</summary>
+    public uint RowVersion { get; set; }
+
     // Navigation properties
     public Sucursal Sucursal { get; set; } = null!;
     public ICollection<Turno> Turnos { get; set; } = new List<Turno>();

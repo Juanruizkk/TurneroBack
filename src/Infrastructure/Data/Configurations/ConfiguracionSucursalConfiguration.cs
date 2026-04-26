@@ -67,5 +67,11 @@ public class ConfiguracionSucursalConfiguration : IEntityTypeConfiguration<Confi
             .WithOne(s => s.ConfiguracionSucursal)
             .HasForeignKey<ConfiguracionSucursal>(c => c.SucursalId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // B-02: concurrencia optimista — usa la columna de sistema xmin de PostgreSQL.
+        builder.Property(c => c.RowVersion)
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .IsRowVersion();
     }
 }

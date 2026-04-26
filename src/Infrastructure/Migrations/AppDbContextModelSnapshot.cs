@@ -188,6 +188,11 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Apellido")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -196,6 +201,9 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Property<string>("Email")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("FechaArchivado")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -311,6 +319,12 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
                     b.Property<Guid>("SucursalId")
                         .HasColumnType("uuid");
 
@@ -397,6 +411,41 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.ToTable("movimientos_caja", (string)null);
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.PagoSuscripcion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FechaPago")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("MPPaymentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("Monto")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PlanNombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("SucursalId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MPPaymentId")
+                        .IsUnique();
+
+                    b.HasIndex("SucursalId");
+
+                    b.ToTable("pagos_suscripcion", (string)null);
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.PagoTurno", b =>
                 {
                     b.Property<Guid>("Id")
@@ -445,9 +494,6 @@ namespace TurneroApp.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
-
-                    b.Property<int?>("MaxServicios")
-                        .HasColumnType("integer");
 
                     b.Property<int?>("MaxTurnosMes")
                         .HasColumnType("integer");
@@ -519,6 +565,12 @@ namespace TurneroApp.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
 
                     b.Property<Guid>("SucursalId")
                         .HasColumnType("uuid");
@@ -756,6 +808,12 @@ namespace TurneroApp.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
 
                     b.Property<Guid>("ServicioId")
                         .HasColumnType("uuid");
@@ -1088,6 +1146,17 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Navigation("Turno");
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("TurneroApp.Domain.Entities.PagoSuscripcion", b =>
+                {
+                    b.HasOne("TurneroApp.Domain.Entities.Sucursal", "Sucursal")
+                        .WithMany()
+                        .HasForeignKey("SucursalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Sucursal");
                 });
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.PagoTurno", b =>

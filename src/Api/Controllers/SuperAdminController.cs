@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.SuperAdmin;
 using TurneroApp.Application.Services;
@@ -7,6 +8,7 @@ namespace TurneroApp.Api.Controllers;
 [ApiController]
 [Route("api/superadmin")]
 [Produces("application/json")]
+[Authorize(Roles = "SuperAdmin")]
 public class SuperAdminController : ControllerBase
 {
     private readonly SuperAdminService _service;

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using TurneroApp.Application.DTOs.Auth;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Domain.Enums;
@@ -43,7 +45,9 @@ public class AuthService
         // Si el email coincide con el SA, el flujo termina aquí — nunca cae al lookup de usuario regular.
         if (emailNorm == _saEmail)
         {
-            if (dto.Password != _saPassword)
+            var passwordBytes = Encoding.UTF8.GetBytes(dto.Password);
+            var expectedBytes = Encoding.UTF8.GetBytes(_saPassword);
+            if (!CryptographicOperations.FixedTimeEquals(passwordBytes, expectedBytes))
                 throw new UnauthorizedAccessException("Credenciales incorrectas.");
 
             return new LoginValidacionDto

@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using TurneroApp.Application.DTOs.Turno;
-using TurneroApp.Domain.Enums;
 using TurneroApp.IntegrationTests.Helpers;
 using TurneroApp.IntegrationTests.Infrastructure;
 using Xunit;
@@ -34,7 +33,7 @@ public class TurnoServiceIntegrationTests : IntegrationTestBase
         {
             SucursalId = sucursal.Id, ClienteId = cliente.Id,
             ServicioId = servicio.Id, ProfesionalId = prof.Id,
-            FechaHoraInicio = mes.AddHours(5), Origen = OrigenTurno.Administrativo,
+            FechaHoraInicio = mes.AddHours(5),
         };
 
         // Act
@@ -72,7 +71,6 @@ public class TurnoServiceIntegrationTests : IntegrationTestBase
             SucursalId = sucursal.Id, ClienteId = cliente.Id,
             ServicioId = servicio.Id, ProfesionalId = prof.Id,
             FechaHoraInicio = inicio.AddMinutes(15), // 10:15 — solapa el existente
-            Origen = OrigenTurno.Administrativo,
         };
 
         // Act
@@ -106,7 +104,7 @@ public class TurnoServiceIntegrationTests : IntegrationTestBase
         {
             SucursalId = sucursal.Id, ClienteId = cliente.Id,
             ServicioId = servicio.Id, ProfesionalId = prof.Id,
-            FechaHoraInicio = inicio, Origen = OrigenTurno.Administrativo,
+            FechaHoraInicio = inicio,
         };
 
         // Act

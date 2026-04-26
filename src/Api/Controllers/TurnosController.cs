@@ -1,15 +1,18 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Caja;
 using TurneroApp.Application.DTOs.Turno;
 using TurneroApp.Application.Exceptions;
 using TurneroApp.Application.Services;
+using TurneroApp.Domain.Enums;
 
 namespace TurneroApp.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class TurnosController : ControllerBase
 {
     private readonly TurnoService        _turnoService;
@@ -56,22 +59,26 @@ public class TurnosController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene un turno por su token de gestión (para uso de clientes).
+    /// Obtiene datos públicos de un turno por su token de gestión (para uso de clientes).
+    /// Devuelve únicamente información no sensible: fechas, estado, servicio y profesional.
     /// </summary>
     [HttpGet("by-token/{token}")]
-    [ProducesResponseType(typeof(TurnoResponseDto), StatusCodes.Status200OK)]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(TurnoPublicoResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetByToken(string token)
     {
-        var turno = await _turnoService.GetByTokenAsync(token);
+        var turno = await _turnoService.GetByTokenPublicoAsync(token);
         if (turno is null) return NotFound(new { message = "Turno no encontrado para el token proporcionado." });
         return Ok(turno);
     }
 
     /// <summary>
     /// Crea un nuevo turno. Valida que no existan conflictos de horario con el profesional.
+    /// Endpoint accesible para usuarios autenticados (staff → Presencial) y anónimos (clientes online → Web).
     /// </summary>
     [HttpPost]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(TurnoResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -79,10 +86,15 @@ public class TurnosController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
+        // El origen se determina server-side: autenticado = Administrativo, anónimo = Web
+        var origen = User.Identity?.IsAuthenticated == true
+            ? OrigenTurno.Administrativo
+            : OrigenTurno.Web;
+
         try
         {
             await _guard.VerificarActivaAsync(dto.SucursalId);
-            var turno = await _turnoService.CreateAsync(dto);
+            var turno = await _turnoService.CreateAsync(dto, origen);
             return CreatedAtAction(nameof(GetById), new { id = turno.Id }, turno);
         }
         catch (SuscripcionVencidaException ex)

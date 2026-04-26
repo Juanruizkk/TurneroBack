@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     // ─── Suscripciones ───────────────────────────────────────────────────────
     public DbSet<Plan> Planes => Set<Plan>();
     public DbSet<SucursalSuscripcion> SucursalSuscripciones => Set<SucursalSuscripcion>();
+    public DbSet<PagoSuscripcion> PagosSuscripcion => Set<PagoSuscripcion>();
 
     // ─── Mercado Pago OAuth ───────────────────────────────────────────────────
     public DbSet<SucursalMercadoPago> SucursalMercadoPagos => Set<SucursalMercadoPago>();
@@ -49,14 +50,18 @@ public class AppDbContext : DbContext
         // SuperAdmin y endpoints anónimos (register, booking público) no tienen
         // SucursalId en el token, por lo que no se filtran.
         modelBuilder.Entity<Servicio>()
-            .HasQueryFilter(e => _tenantContext == null
-                || !_tenantContext.SucursalId.HasValue
-                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+            .HasQueryFilter(e =>
+                e.Activo &&
+                (_tenantContext == null
+                 || !_tenantContext.SucursalId.HasValue
+                 || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault()));
 
         modelBuilder.Entity<Cliente>()
-            .HasQueryFilter(e => _tenantContext == null
-                || !_tenantContext.SucursalId.HasValue
-                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+            .HasQueryFilter(e =>
+                e.Activo &&
+                (_tenantContext == null
+                 || !_tenantContext.SucursalId.HasValue
+                 || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault()));
 
         modelBuilder.Entity<Turno>()
             .HasQueryFilter(e => _tenantContext == null
@@ -64,9 +69,11 @@ public class AppDbContext : DbContext
                 || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
 
         modelBuilder.Entity<Caja>()
-            .HasQueryFilter(e => _tenantContext == null
-                || !_tenantContext.SucursalId.HasValue
-                || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault());
+            .HasQueryFilter(e =>
+                e.Activa &&
+                (_tenantContext == null
+                 || !_tenantContext.SucursalId.HasValue
+                 || e.SucursalId == _tenantContext.SucursalId.GetValueOrDefault()));
 
         modelBuilder.Entity<BloqueoAgenda>()
             .HasQueryFilter(e => _tenantContext == null

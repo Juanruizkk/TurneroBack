@@ -1,7 +1,9 @@
 using System.Text.Json;
 using TurneroApp.Application.DTOs.Ajustes;
 using TurneroApp.Application.DTOs.Publico;
+using TurneroApp.Application.DTOs.Turno;
 using TurneroApp.Application.Interfaces;
+using TurneroApp.Domain.Entities;
 using TurneroApp.Domain.Enums;
 
 namespace TurneroApp.Application.Services;
@@ -27,6 +29,8 @@ public class PublicoService
     private readonly IUsuarioSucursalRolRepository _usrRepo;
     private readonly IHorarioLaboralRepository     _horarioRepo;
     private readonly IUsuarioServicioRepository    _usuarioServicioRepo;
+    private readonly IClienteRepository            _clienteRepo;
+    private readonly TurnoService                  _turnoService;
 
     public PublicoService(
         ISucursalRepository           sucursalRepo,
@@ -34,7 +38,9 @@ public class PublicoService
         ITurnoRepository              turnoRepo,
         IUsuarioSucursalRolRepository usrRepo,
         IHorarioLaboralRepository     horarioRepo,
-        IUsuarioServicioRepository    usuarioServicioRepo)
+        IUsuarioServicioRepository    usuarioServicioRepo,
+        IClienteRepository            clienteRepo,
+        TurnoService                  turnoService)
     {
         _sucursalRepo        = sucursalRepo;
         _servicioRepo        = servicioRepo;
@@ -42,6 +48,8 @@ public class PublicoService
         _usrRepo             = usrRepo;
         _horarioRepo         = horarioRepo;
         _usuarioServicioRepo = usuarioServicioRepo;
+        _clienteRepo         = clienteRepo;
+        _turnoService        = turnoService;
     }
 
     // ─── Perfil público ───────────────────────────────────────────────────────
@@ -213,5 +221,52 @@ public class PublicoService
         }
 
         return resultado;
+    }
+
+    // ─── Reserva pública (sin autenticación) ──────────────────────────────────
+
+    /// <summary>
+    /// Busca o crea el cliente y crea el turno en una sola operación.
+    /// Permite que el booking flow funcione sin necesitar un token de autenticación.
+    /// </summary>
+    public async Task<DTOs.Turno.TurnoResponseDto> ReservarAsync(
+        Guid sucursalId, ReservarTurnoPublicoDto dto)
+    {
+        // Buscar cliente existente por teléfono en la sucursal
+        var cliente = await _clienteRepo.BuscarPorTelefonoAsync(sucursalId, dto.Telefono);
+
+        Guid clienteId;
+        if (cliente is not null)
+        {
+            clienteId = cliente.Id;
+        }
+        else
+        {
+            var nuevo = new Cliente
+            {
+                Id         = Guid.NewGuid(),
+                SucursalId = sucursalId,
+                Nombre     = dto.Nombre.Trim(),
+                Apellido   = dto.Apellido?.Trim() ?? "-",
+                Telefono   = dto.Telefono.Trim(),
+                Email      = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim(),
+                Activo     = true,
+            };
+            await _clienteRepo.AddAsync(nuevo);
+            await _clienteRepo.SaveChangesAsync();
+            clienteId = nuevo.Id;
+        }
+
+        var createDto = new CreateTurnoDto
+        {
+            SucursalId      = sucursalId,
+            ClienteId       = clienteId,
+            ServicioId      = dto.ServicioId,
+            ProfesionalId   = dto.ProfesionalId,
+            FechaHoraInicio = dto.FechaHoraInicio,
+            Observaciones   = dto.Observaciones,
+        };
+
+        return await _turnoService.CreateAsync(createDto, OrigenTurno.Web);
     }
 }

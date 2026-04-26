@@ -1,5 +1,7 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TurneroApp.Api.Hubs;
@@ -37,6 +39,8 @@ builder.Services
 
         // SignalR: leer el token JWT desde el query string ?access_token=...
         // (los WebSockets no soportan headers de Authorization)
+        // B-01: después de leer el token, se elimina del QueryString para que no
+        // aparezca en los logs de middleware subsiguientes.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -44,7 +48,17 @@ builder.Services
                 var accessToken = context.Request.Query["access_token"];
                 var path        = context.HttpContext.Request.Path;
                 if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
                     context.Token = accessToken;
+
+                    // Eliminar del QueryString para que no quede en logs de ASP.NET Core
+                    var queryDict = Microsoft.AspNetCore.WebUtilities.QueryHelpers
+                        .ParseQuery(context.Request.QueryString.Value);
+                    queryDict.Remove("access_token");
+                    context.Request.QueryString = QueryString.Create(
+                        queryDict.SelectMany(kv =>
+                            kv.Value.Select(v => KeyValuePair.Create(kv.Key, v ?? string.Empty))));
+                }
                 return Task.CompletedTask;
             }
         };
@@ -105,7 +119,9 @@ builder.Services.AddScoped<SuperAdminService>(sp => new SuperAdminService(
     sp.GetRequiredService<ISuscripcionRepository>()));
 builder.Services.AddScoped<AjustesService>();
 builder.Services.AddScoped<OnboardingService>();
-builder.Services.AddScoped<SuscripcionGuard>();
+builder.Services.AddScoped<SuscripcionGuard>(sp => new SuscripcionGuard(
+    sp.GetRequiredService<ISuscripcionRepository>(),
+    builder.Configuration.GetValue<int>("App:DiasGracia", 3)));
 builder.Services.AddScoped<SuscripcionService>(sp => new SuscripcionService(
     sp.GetRequiredService<ISuscripcionRepository>(),
     sp.GetRequiredService<ISucursalRepository>(),
@@ -119,7 +135,9 @@ builder.Services.AddScoped<PublicoService>(sp => new PublicoService(
     sp.GetRequiredService<ITurnoRepository>(),
     sp.GetRequiredService<IUsuarioSucursalRolRepository>(),
     sp.GetRequiredService<IHorarioLaboralRepository>(),
-    sp.GetRequiredService<IUsuarioServicioRepository>()));
+    sp.GetRequiredService<IUsuarioServicioRepository>(),
+    sp.GetRequiredService<IClienteRepository>(),
+    sp.GetRequiredService<TurnoService>()));
 builder.Services.AddScoped<InvitacionService>(sp => new InvitacionService(
     sp.GetRequiredService<IUsuarioSucursalRolRepository>(),
     sp.GetRequiredService<IUsuarioRepository>()));
@@ -131,6 +149,8 @@ builder.Services.AddScoped<JwtService>();
 
 
 // ─── MercadoPago ─────────────────────────────────────────────────────────────
+builder.Services.Configure<MercadoPagoOptions>(
+    builder.Configuration.GetSection(MercadoPagoOptions.SectionName));
 builder.Services.AddScoped<IMercadoPagoGateway, MercadoPagoGateway>();
 
 // ─── MercadoPago OAuth ───────────────────────────────────────────────────────
@@ -150,6 +170,13 @@ builder.Services.AddScoped<IPagoTurnoService>(sp => new PagoTurnoService(
     builder.Configuration["App:BackendUrl"]  ?? "http://localhost:5000",
     sp.GetRequiredService<ITurnoNotificacionService>()
 ));
+builder.Services.AddScoped<IPagoSuscripcionService>(sp => new PagoSuscripcionService(
+    sp.GetRequiredService<ISuscripcionRepository>(),
+    sp.GetRequiredService<IMercadoPagoGateway>(),
+    sp.GetRequiredService<ILogger<PagoSuscripcionService>>(),
+    builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173",
+    builder.Configuration["App:BackendUrl"]  ?? "http://localhost:5000",
+    builder.Configuration["MercadoPago:MasterAccessToken"] ?? string.Empty));
 builder.Services.AddHostedService<TurnoAutoNoShowService>();
 builder.Services.AddHostedService<RecordatoriosEmailBackgroundService>();
 builder.Services.AddHostedService<TurnoPagoExpirationService>();
@@ -249,6 +276,21 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// ─── Rate Limiting ───────────────────────────────────────────────────────────
+builder.Services.AddRateLimiter(options =>
+{
+    // 10 intentos por IP cada 15 minutos en endpoints de autenticación
+    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    {
+        limiterOptions.Window              = TimeSpan.FromMinutes(15);
+        limiterOptions.PermitLimit         = 10;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit          = 0;
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
 // ─── CORS ────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
 {
@@ -294,18 +336,33 @@ var app = builder.Build();
 }
 
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────
+
+// M-09: Global exception handler — evita filtrar stack traces al cliente
+app.UseExceptionHandler(errApp => errApp.Run(async ctx =>
+{
+    ctx.Response.StatusCode  = StatusCodes.Status500InternalServerError;
+    ctx.Response.ContentType = "application/json";
+    await ctx.Response.WriteAsJsonAsync(new
+    {
+        message = "Ocurrió un error interno. Por favor intente más tarde."
+    });
+}));
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-
-    app.UseCors("AllowAll");
 }
-else
+else if (!app.Environment.IsEnvironment("Testing"))
 {
     app.UseHttpsRedirection();
-    app.UseCors("AllowFrontend");
 }
+
+// AllowFrontend en todos los entornos (AllowAll eliminado — exponía CORS abierto en dev)
+app.UseCors("AllowFrontend");
+
+// M-06: Rate limiter activo en todos los entornos
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -323,3 +380,6 @@ if (app.Environment.IsDevelopment())
 app.Run();
 
 
+
+// Expose Program to integration test projects
+public partial class Program { }

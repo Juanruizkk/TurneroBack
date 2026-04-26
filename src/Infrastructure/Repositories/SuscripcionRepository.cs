@@ -58,12 +58,38 @@ public class SuscripcionRepository : GenericRepository<SucursalSuscripcion>, ISu
         _context.Set<Plan>().Update(plan);
     }
 
+    public void UpdateEstado(SucursalSuscripcion suscripcion)
+    {
+        // Solo marca el campo Estado como modificado para no sobrescribir el Plan ni otras entidades del grafo.
+        _context.Entry(suscripcion).Property(s => s.Estado).IsModified = true;
+    }
+
     public async Task<IEnumerable<SucursalSuscripcion>> GetTodasConSucursalAsync()
     {
         return await _dbSet
             .Include(s => s.Plan)
             .Include(s => s.Sucursal)
             .OrderBy(s => s.Sucursal.Nombre)
+            .ToListAsync();
+    }
+
+    public async Task AddPagoAsync(PagoSuscripcion pago)
+    {
+        await _context.Set<PagoSuscripcion>().AddAsync(pago);
+    }
+
+    public async Task<bool> ExistePagoAsync(long mpPaymentId)
+    {
+        return await _context.Set<PagoSuscripcion>()
+            .AnyAsync(p => p.MPPaymentId == mpPaymentId);
+    }
+
+    public async Task<IEnumerable<PagoSuscripcion>> GetHistorialBySucursalAsync(Guid sucursalId, int limit = 20)
+    {
+        return await _context.Set<PagoSuscripcion>()
+            .Where(p => p.SucursalId == sucursalId)
+            .OrderByDescending(p => p.FechaPago)
+            .Take(limit)
             .ToListAsync();
     }
 }

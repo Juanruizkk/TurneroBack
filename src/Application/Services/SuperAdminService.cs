@@ -82,7 +82,7 @@ public class SuperAdminService
                 Apellido      = dto.OwnerApellido,
                 Email         = emailNorm,
                 Telefono      = dto.OwnerTelefono,
-                PasswordHash  = dto.OwnerPassword,
+                PasswordHash  = BCrypt.Net.BCrypt.HashPassword(dto.OwnerPassword),
                 FechaCreacion = DateTime.UtcNow,
             };
             await _usuarioRepo.AddAsync(owner);
@@ -163,7 +163,7 @@ public class SuperAdminService
         if (usuario is null)
             throw new InvalidOperationException($"No se encontró ningún usuario activo con el email '{emailNorm}'.");
 
-        usuario.PasswordHash = nuevoPassword;
+        usuario.PasswordHash = BCrypt.Net.BCrypt.HashPassword(nuevoPassword);
         _usuarioRepo.Update(usuario);
         await _usuarioRepo.SaveChangesAsync();
 

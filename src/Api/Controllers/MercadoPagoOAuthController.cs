@@ -1,6 +1,11 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Options;
 using TurneroApp.Application.Interfaces;
+using TurneroApp.Infrastructure.Services.MercadoPago;
 
 namespace TurneroApp.Api.Controllers;
 
@@ -11,13 +16,60 @@ public class MercadoPagoOAuthController : ControllerBase
 {
     private readonly IMercadoPagoOAuthService _oauthService;
     private readonly IConfiguration _configuration;
+    private readonly MercadoPagoOAuthOptions _oauthOptions;
 
     public MercadoPagoOAuthController(
         IMercadoPagoOAuthService oauthService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IOptions<MercadoPagoOAuthOptions> oauthOptions)
     {
         _oauthService  = oauthService;
         _configuration = configuration;
+        _oauthOptions  = oauthOptions.Value;
+    }
+
+    /// <summary>Genera un state HMAC-firmado para el flujo OAuth.</summary>
+    private string GenerarStateFirmado(Guid sucursalId)
+    {
+        var secret = _oauthOptions.StateSecret;
+        if (string.IsNullOrEmpty(secret))
+            throw new InvalidOperationException("MercadoPagoOAuth:StateSecret no configurado.");
+
+        var payload = $"{sucursalId:N}:{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        var firma = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes($"{payload}.{firma}"));
+    }
+
+    /// <summary>
+    /// Verifica el state HMAC. Devuelve el sucursalId si la firma es válida, o null si no.
+    /// </summary>
+    private Guid? VerificarState(string state)
+    {
+        try
+        {
+            var secret = _oauthOptions.StateSecret;
+            if (string.IsNullOrEmpty(secret)) return null;
+
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(state));
+            var dotPos = decoded.LastIndexOf('.');
+            if (dotPos < 0) return null;
+
+            var payload = decoded[..dotPos];
+            var firmaRecibida = decoded[(dotPos + 1)..];
+
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+            var firmaEsperada = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
+
+            if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(firmaEsperada),
+                Encoding.UTF8.GetBytes(firmaRecibida)))
+                return null;
+
+            var partes = payload.Split(':');
+            return Guid.TryParseExact(partes[0], "N", out var id) ? id : null;
+        }
+        catch { return null; }
     }
 
     /// <summary>
@@ -34,7 +86,20 @@ public class MercadoPagoOAuthController : ControllerBase
         if (sucursalId == Guid.Empty)
             return BadRequest("sucursalId es requerido.");
 
-        var url = _oauthService.GenerarUrlAutorizacion(sucursalId);
+        string state;
+        try { state = GenerarStateFirmado(sucursalId); }
+        catch (InvalidOperationException ex) { return StatusCode(500, new { message = ex.Message }); }
+
+        // Construir la URL directamente usando el state firmado
+        var query = new Dictionary<string, string?>
+        {
+            ["client_id"]     = _oauthOptions.ClientId,
+            ["response_type"] = "code",
+            ["platform_id"]   = "mp",
+            ["state"]         = state,
+            ["redirect_uri"]  = _oauthOptions.RedirectUri,
+        };
+        var url = QueryHelpers.AddQueryString(_oauthOptions.AuthorizationBaseUrl, query!);
         return Ok(new { url });
     }
 
@@ -88,17 +153,18 @@ public async Task<IActionResult> Callback(
         });
     }
 
-    if (string.IsNullOrWhiteSpace(state) || !Guid.TryParseExact(state, "N", out var sucursalId))
+    if (string.IsNullOrWhiteSpace(state))
     {
-        return BadRequest(new
-        {
-            mensaje = "State inválido o ausente",
-            state,
-            code,
-            error,
-            error_description
-        });
+        return BadRequest(new { mensaje = "State ausente en el callback de Mercado Pago." });
     }
+
+    var sucursalIdVerificado = VerificarState(state);
+    if (sucursalIdVerificado is null)
+    {
+        return BadRequest(new { mensaje = "State inválido o firma HMAC incorrecta. Posible ataque CSRF." });
+    }
+
+    var sucursalId = sucursalIdVerificado.Value;
 
     try
     {

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Servicio;
 using TurneroApp.Application.Exceptions;
@@ -8,6 +9,7 @@ namespace TurneroApp.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class ServiciosController : ControllerBase
 {
     private readonly ServicioService  _servicioService;

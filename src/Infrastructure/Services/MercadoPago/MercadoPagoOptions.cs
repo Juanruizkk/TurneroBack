@@ -20,4 +20,21 @@ public sealed class MercadoPagoOptions
     /// </summary>
     public string WebhookSecret { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Token de la cuenta propia del sistema (no OAuth de sucursal).
+    /// Se usa exclusivamente para cobrar suscripciones de planes.
+    /// </summary>
+    public string MasterAccessToken { get; set; } = string.Empty;
+
+    /// <summary>
+    /// true = usar sandbox_init_point (credenciales de prueba de MP).
+    /// false = usar init_point (credenciales de producción).
+    /// </summary>
+    public bool TestMode { get; set; } = false;
+
+    /// <summary>
+    /// Secreto del webhook de suscripciones (puede diferir del WebhookSecret de turnos).
+    /// Si está vacío, la validación de firma se omite (igual que WebhookSecret).
+    /// </summary>
+    public string MasterWebhookSecret { get; set; } = string.Empty;
 }

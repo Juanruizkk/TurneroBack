@@ -12,17 +12,20 @@ namespace TurneroApp.Api.Controllers;
 public class WebhooksController : ControllerBase
 {
     private readonly IPagoTurnoService           _pagoService;
+    private readonly IPagoSuscripcionService     _pagoSuscripcionService;
     private readonly ILogger<WebhooksController> _logger;
     private readonly MercadoPagoOptions          _mpOptions;
 
     public WebhooksController(
-        IPagoTurnoService           pagoService,
-        ILogger<WebhooksController> logger,
+        IPagoTurnoService            pagoService,
+        IPagoSuscripcionService      pagoSuscripcionService,
+        ILogger<WebhooksController>  logger,
         IOptions<MercadoPagoOptions> mpOptions)
     {
-        _pagoService = pagoService;
-        _logger      = logger;
-        _mpOptions   = mpOptions.Value;
+        _pagoService            = pagoService;
+        _pagoSuscripcionService = pagoSuscripcionService;
+        _logger                 = logger;
+        _mpOptions              = mpOptions.Value;
     }
 
     /// <summary>
@@ -88,6 +91,56 @@ public class WebhooksController : ControllerBase
     }
 
     /// <summary>
+    /// Endpoint que MP llama cuando se aprueba el pago de una suscripción de plan.
+    /// Usa la cuenta propia del sistema (MasterAccessToken), no OAuth de sucursal.
+    /// Siempre retorna 200 OK.
+    /// </summary>
+    [HttpPost("mercadopago-suscripcion")]
+    public async Task<IActionResult> MercadoPagoSuscripcion(
+        [FromQuery] string?          type,
+        [FromQuery] string?          topic,
+        [FromBody]  MpWebhookPayload? payload)
+    {
+        var eventType = type ?? topic ?? payload?.Type;
+
+        var rawId = payload?.Data?.Id
+                 ?? Request.Query["data.id"].FirstOrDefault()
+                 ?? Request.Query["id"].FirstOrDefault();
+
+        _logger.LogInformation(
+            "Webhook MP suscripción recibido: type={Type}, id={Id}", eventType, rawId);
+
+        var xSignature = Request.Headers["x-signature"].FirstOrDefault();
+        var xRequestId = Request.Headers["x-request-id"].FirstOrDefault();
+        if (!ValidarFirmaWebhook(xSignature, xRequestId, rawId, _mpOptions.MasterWebhookSecret))
+        {
+            _logger.LogWarning(
+                "Firma inválida en webhook de suscripción. PaymentId={RawId}", rawId);
+            return Ok();
+        }
+
+        if (eventType != "payment" || string.IsNullOrEmpty(rawId))
+            return Ok();
+
+        if (!long.TryParse(rawId, out var paymentId))
+        {
+            _logger.LogWarning("ID de pago inválido en webhook suscripción: '{RawId}'", rawId);
+            return Ok();
+        }
+
+        try
+        {
+            await _pagoSuscripcionService.ProcesarWebhookAsync(paymentId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error procesando webhook de suscripción para PaymentId={PaymentId}.", paymentId);
+        }
+
+        return Ok();
+    }
+
+    /// <summary>
     /// Valida la firma HMAC-SHA256 del webhook de Mercado Pago.
     /// Si <see cref="MercadoPagoOptions.WebhookSecret"/> no está configurado, el método devuelve true
     /// para no bloquear entornos de desarrollo sin secreto configurado.
@@ -96,10 +149,14 @@ public class WebhooksController : ControllerBase
     /// Formato del header x-signature: <c>ts=&lt;unix_timestamp&gt;,v1=&lt;hmac_hex&gt;</c>
     /// Contenido firmado: <c>id:&lt;dataId&gt;;request-id:&lt;xRequestId&gt;;ts:&lt;ts&gt;</c>
     /// </remarks>
-    private bool ValidarFirmaWebhook(string? xSignature, string? xRequestId, string? dataId)
+    private bool ValidarFirmaWebhook(string? xSignature, string? xRequestId, string? dataId, string? secret = null)
     {
-        if (string.IsNullOrEmpty(_mpOptions.WebhookSecret))
-            return true; // secreto no configurado → se omite la validación (entorno de desarrollo)
+        var effectiveSecret = secret ?? _mpOptions.WebhookSecret;
+        if (string.IsNullOrEmpty(effectiveSecret))
+        {
+            _logger.LogError("WebhookSecret no configurado. Se rechaza el webhook por seguridad. Configure 'MercadoPago:WebhookSecret'.");
+            return false;
+        }
 
         if (string.IsNullOrEmpty(xSignature))
         {
@@ -126,7 +183,7 @@ public class WebhooksController : ControllerBase
         }
 
         var manifest = $"id:{dataId};request-id:{xRequestId};ts:{ts}";
-        var key      = Encoding.UTF8.GetBytes(_mpOptions.WebhookSecret);
+        var key      = Encoding.UTF8.GetBytes(effectiveSecret);
         var data     = Encoding.UTF8.GetBytes(manifest);
 
         using var hmac     = new HMACSHA256(key);

@@ -78,7 +78,7 @@ public class ServicioService
         servicio.ValorSena = dto.ValorSena;
         servicio.ModalidadPrestacion = dto.ModalidadPrestacion;
         servicio.TipoServicio = dto.TipoServicio;
-        servicio.Activo = dto.Activo;
+        // Activo no se modifica aquí — usar DELETE /api/servicios/{id}
 
         _servicioRepository.Update(servicio);
         await _servicioRepository.SaveChangesAsync();
