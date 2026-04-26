@@ -3,14 +3,13 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # Copy solution and project files first for layer caching
-COPY TurneroApp.sln ./
 COPY src/Domain/TurneroApp.Domain.csproj src/Domain/
 COPY src/Application/TurneroApp.Application.csproj src/Application/
 COPY src/Infrastructure/TurneroApp.Infrastructure.csproj src/Infrastructure/
 COPY src/Api/TurneroApp.Api.csproj src/Api/
 
-# Restore dependencies
-RUN dotnet restore TurneroApp.sln
+# Restore only the API project (pulls all referenced projects; tests excluded)
+RUN dotnet restore src/Api/TurneroApp.Api.csproj
 
 # Copy all source files
 COPY src/ src/
