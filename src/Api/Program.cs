@@ -369,6 +369,10 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<TurneroHub>("/hubs/turnero");
 
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+   .AllowAnonymous()
+   .ExcludeFromDescription();
+
 // ─── Auto-migrate on startup (development only) ───────────────────────────────
 if (app.Environment.IsDevelopment())
 {
