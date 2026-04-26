@@ -130,3 +130,15 @@ jobs:
         with:
           name: integration-test-results
           path: ./test-results/*.trx
+
+  # ─── JOB 3: Deploy via Dokploy ───────────────────────────────────────────────
+  deploy:
+    name: "Deploy to Hostinger VPS (Dokploy)"
+    runs-on: ubuntu-latest
+    needs: integration-tests        # Solo despliega si todos los tests pasaron
+    if: github.event_name == 'push' # No despliega en PRs, solo en push a main
+
+    steps:
+      - name: Trigger Dokploy webhook
+        run: |
+          curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}"

@@ -11,14 +11,32 @@ namespace TurneroApp.Api.Controllers;
 public class PublicoController : ControllerBase
 {
     private readonly PublicoService _service;
+    private readonly ServicioService _servicioService;
     private readonly ILogger<PublicoController> _logger;
 
-    public PublicoController(PublicoService service, ILogger<PublicoController> logger)
+    public PublicoController(PublicoService service, ServicioService servicioService, ILogger<PublicoController> logger)
     {
-        _service = service;
-        _logger  = logger;
+        _service         = service;
+        _servicioService = servicioService;
+        _logger          = logger;
     }
 
+
+    /// <summary>Servicios activos de la sucursal (para el booking público).</summary>
+    [HttpGet("{slug}/servicios")]
+    public async Task<IActionResult> Servicios(string slug)
+    {
+        try
+        {
+            var perfil = await _service.ObtenerPerfilAsync(slug);
+            var servicios = await _servicioService.GetBySucursalAsync(perfil.SucursalId, incluirInactivos: false);
+            return Ok(servicios);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
 
     /// <summary>Perfil público de la sucursal (nombre, slogan, foto, rubros, horarios).</summary>
     [HttpGet("{slug}/perfil")]
