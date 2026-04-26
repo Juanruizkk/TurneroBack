@@ -306,7 +306,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "https://turneroapp.com")
+                "https://metaturnos.com")
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
