@@ -13,12 +13,14 @@ public interface IMercadoPagoGateway
     /// (sandbox si el token empieza con "TEST-", producción en caso contrario).
     /// </returns>
     Task<(string PreferenceId, string CheckoutUrl)> CrearPreferenciaAsync(
-        string  turnoId,
+        string  externalReference,
         string  tituloServicio,
         decimal monto,
         string  frontendUrl,
         string  accessToken,
-        string? notificationUrl);
+        string? notificationUrl,
+        string? successUrl = null,
+        string? failureUrl = null);
 
     /// <summary>
     /// Consulta el estado real de un pago por su ID (usado en el webhook).

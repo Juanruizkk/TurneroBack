@@ -26,6 +26,7 @@ public class TurnoPagoExpirationServiceTests
     private readonly Mock<IServiceScope>                           _scopeMock;
     private readonly Mock<IServiceProvider>                        _serviceProviderMock;
     private readonly Mock<ITurnoRepository>                        _turnoRepoMock;
+    private readonly Mock<IClienteRepository>                      _clienteRepoMock;
     private readonly Mock<ILogger<TurnoPagoExpirationService>>     _loggerMock;
 
     private readonly TurnoPagoExpirationService _sut;
@@ -38,11 +39,16 @@ public class TurnoPagoExpirationServiceTests
         _scopeMock           = new Mock<IServiceScope>();
         _serviceProviderMock = new Mock<IServiceProvider>();
         _turnoRepoMock       = new Mock<ITurnoRepository>();
+        _clienteRepoMock     = new Mock<IClienteRepository>();
         _loggerMock          = new Mock<ILogger<TurnoPagoExpirationService>>();
 
         _serviceProviderMock
             .Setup(sp => sp.GetService(typeof(ITurnoRepository)))
             .Returns(_turnoRepoMock.Object);
+
+        _serviceProviderMock
+            .Setup(sp => sp.GetService(typeof(IClienteRepository)))
+            .Returns(_clienteRepoMock.Object);
 
         _scopeMock
             .Setup(s => s.ServiceProvider)

@@ -187,8 +187,6 @@ public class UsuarioService
 
     public async Task<UsuarioResponseDto> UpdateAsync(Guid id, UpdateUsuarioDto dto)
     {
-        ValidarPermisos(dto.Permisos);
-
         var usr = await _usrRepository.GetByIdAsync(id)
             ?? throw new InvalidOperationException($"No se encontró el usuario con id {id}.");
 
@@ -209,11 +207,26 @@ public class UsuarioService
         usr.Usuario.Email    = emailNormalizado;
         usr.Usuario.Telefono = dto.Telefono.Trim();
 
-        // Actualizar datos de membresía en UsuarioSucursalRol
+        _usrRepository.Update(usr);
+        await _usrRepository.SaveChangesAsync();
+
+        return MapToResponse(usr);
+    }
+
+    /// <summary>
+    /// Actualiza el rol, estado y permisos de la membresía de un usuario.
+    /// Operación exclusiva para usuarios con permisos administrativos.
+    /// </summary>
+    public async Task<UsuarioResponseDto> UpdateRolEstadoPermisosAsync(Guid id, UpdateRolEstadoPermisosDto dto)
+    {
+        ValidarPermisos(dto.Permisos);
+
+        var usr = await _usrRepository.GetByIdAsync(id)
+            ?? throw new InvalidOperationException($"No se encontró el usuario con id {id}.");
+
         usr.Rol    = dto.Rol;
         usr.Estado = dto.Estado;
 
-        // Reemplazar permisos
         foreach (var p in usr.Permisos.ToList())
             usr.Permisos.Remove(p);
 
@@ -320,14 +333,22 @@ public class UsuarioService
         var usr = await _usrRepository.GetByIdAsync(id)
             ?? throw new InvalidOperationException($"No se encontró el usuario con id {id}.");
 
-        var entidades = dtos.Select(d => new HorarioLaboral
+        var entidades = dtos.Select(d =>
         {
-            Id                   = Guid.NewGuid(),
-            UsuarioSucursalRolId = usr.Id,
-            DiaSemana            = (DayOfWeek)d.DiaSemana,
-            HoraDesde            = TimeSpan.Parse(d.HoraDesde),
-            HoraHasta            = TimeSpan.Parse(d.HoraHasta),
-            Activo               = d.Activo,
+            if (!TimeSpan.TryParse(d.HoraDesde, out var horaDesde))
+                throw new InvalidOperationException($"Formato de hora inválido: '{d.HoraDesde}'. Use HH:mm.");
+            if (!TimeSpan.TryParse(d.HoraHasta, out var horaHasta))
+                throw new InvalidOperationException($"Formato de hora inválido: '{d.HoraHasta}'. Use HH:mm.");
+
+            return new HorarioLaboral
+            {
+                Id                   = Guid.NewGuid(),
+                UsuarioSucursalRolId = usr.Id,
+                DiaSemana            = (DayOfWeek)d.DiaSemana,
+                HoraDesde            = horaDesde,
+                HoraHasta            = horaHasta,
+                Activo               = d.Activo,
+            };
         });
 
         await _horarioRepo.ReplaceAsync(usr.Id, entidades);

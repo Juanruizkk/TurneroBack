@@ -22,18 +22,20 @@ public sealed class MercadoPagoGateway : IMercadoPagoGateway
     }
     /// <inheritdoc/>
     public async Task<(string PreferenceId, string CheckoutUrl)> CrearPreferenciaAsync(
-        string turnoId,
+        string externalReference,
         string tituloServicio,
         decimal monto,
         string frontendUrl,
         string accessToken,
-        string? notificationUrl)
+        string? notificationUrl,
+        string? successUrl = null,
+        string? failureUrl = null)
     {
         var requestOptions = new RequestOptions { AccessToken = accessToken };
 
         var preference = new PreferenceRequest
         {
-            ExternalReference = turnoId,
+            ExternalReference = externalReference,
 
             Items =
             [
@@ -50,8 +52,8 @@ public sealed class MercadoPagoGateway : IMercadoPagoGateway
 
             BackUrls = new PreferenceBackUrlsRequest
             {
-                Success = $"{frontendUrl}/reserva/pago/exitoso",
-                Failure = $"{frontendUrl}/reserva/pago/fallido",
+                Success = successUrl ?? $"{frontendUrl}/reserva/pago/exitoso",
+                Failure = failureUrl ?? $"{frontendUrl}/reserva/pago/fallido",
                 Pending = $"{frontendUrl}/reserva/pago/pendiente",
             },
             AutoReturn = frontendUrl.Contains("localhost") ? null : "approved",
@@ -60,8 +62,11 @@ public sealed class MercadoPagoGateway : IMercadoPagoGateway
         var client = new PreferenceClient();
         var response = await client.CreateAsync(preference, requestOptions);
 
-        // Los tokens de prueba empiezan con "TEST-"; los productivos con "APP_USR-".
-        var checkoutUrl = response.SandboxInitPoint ?? response.InitPoint;
+        // TestMode=true → sandbox_init_point (credenciales de prueba de MP).
+        // TestMode=false → init_point (credenciales de producción).
+        var checkoutUrl = _options.TestMode
+            ? (response.SandboxInitPoint ?? response.InitPoint)
+            : (response.InitPoint ?? response.SandboxInitPoint);
 
         _logger.LogInformation(
             "Preferencia creada: Id={Id} | NotificationUrl={NotificationUrl} | TokenPrefix={Prefix} | InitPoint={Init} | SandboxInitPoint={Sandbox} | CheckoutUrl={Checkout}",

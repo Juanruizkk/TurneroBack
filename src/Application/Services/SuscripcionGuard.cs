@@ -10,6 +10,7 @@ namespace TurneroApp.Application.Services;
 public class SuscripcionGuard
 {
     private readonly ISuscripcionRepository _repo;
+    private readonly int                    _diasGracia;
 
     private static readonly EstadoSuscripcion[] EstadosVencidos =
     [
@@ -18,9 +19,10 @@ public class SuscripcionGuard
         EstadoSuscripcion.Cancelada,
     ];
 
-    public SuscripcionGuard(ISuscripcionRepository repo)
+    public SuscripcionGuard(ISuscripcionRepository repo, int diasGracia = 3)
     {
-        _repo = repo;
+        _repo       = repo;
+        _diasGracia = diasGracia;
     }
 
     /// <summary>
@@ -37,6 +39,13 @@ public class SuscripcionGuard
 
         if (EstadosVencidos.Contains(suscripcion.Estado))
         {
+            // Período de gracia: N días después de vencer, la sucursal sigue operativa
+            if (suscripcion.Estado == EstadoSuscripcion.Vencida)
+            {
+                if (suscripcion.FechaVencimiento.AddDays(_diasGracia) >= DateTime.UtcNow)
+                    return;
+            }
+
             var mensaje = suscripcion.Estado switch
             {
                 EstadoSuscripcion.PruebVencida =>

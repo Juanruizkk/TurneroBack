@@ -14,6 +14,14 @@ public interface ISuscripcionRepository : IGenericRepository<SucursalSuscripcion
     Task AddPlanAsync(Plan plan);
     void UpdatePlan(Plan plan);
 
+    /// <summary>Actualiza solo el Estado de la suscripción sin afectar entidades relacionadas (Plan, Sucursal).</summary>
+    void UpdateEstado(SucursalSuscripcion suscripcion);
+
     // Panel SuperAdmin — Suscripciones por sucursal
     Task<IEnumerable<SucursalSuscripcion>> GetTodasConSucursalAsync();
+
+    // Historial de pagos de suscripción
+    Task AddPagoAsync(PagoSuscripcion pago);
+    Task<bool> ExistePagoAsync(long mpPaymentId);
+    Task<IEnumerable<PagoSuscripcion>> GetHistorialBySucursalAsync(Guid sucursalId, int limit = 20);
 }

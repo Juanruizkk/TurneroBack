@@ -1,3 +1,4 @@
+using System.Transactions;
 using TurneroApp.Application.DTOs.Turno;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Domain.Entities;
@@ -72,7 +73,32 @@ public class TurnoService
         return turno is null ? null : MapToResponse(turno);
     }
 
-    public async Task<TurnoResponseDto> CreateAsync(CreateTurnoDto dto)
+    /// <summary>
+    /// Vista pública del turno para el cliente (sin IDs internos ni datos financieros).
+    /// Usada por el endpoint AllowAnonymous GET /api/turnos/by-token/{token}.
+    /// </summary>
+    public async Task<TurnoPublicoResponseDto?> GetByTokenPublicoAsync(string token)
+    {
+        var turno = await _turnoRepository.GetByTokenAsync(token);
+        if (turno is null) return null;
+
+        return new TurnoPublicoResponseDto
+        {
+            ClienteNombre     = turno.Cliente is not null
+                ? $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim()
+                : string.Empty,
+            ServicioNombre    = turno.Servicio?.Nombre    ?? string.Empty,
+            ProfesionalNombre = turno.Profesional is not null
+                ? $"{turno.Profesional.Nombre} {turno.Profesional.Apellido}".Trim()
+                : string.Empty,
+            FechaHoraInicio   = turno.FechaHoraInicio,
+            FechaHoraFin      = turno.FechaHoraFin,
+            Estado            = turno.Estado,
+            Observaciones     = turno.Observaciones,
+        };
+    }
+
+    public async Task<TurnoResponseDto> CreateAsync(CreateTurnoDto dto, OrigenTurno origen = OrigenTurno.Web)
     {
         if (_suscripcionGuard is not null)
             await _suscripcionGuard.VerificarActivaAsync(dto.SucursalId);
@@ -125,18 +151,9 @@ public class TurnoService
                 throw new InvalidOperationException("El profesional no ofrece este servicio.");
         }
 
-        var hayConflicto = await _turnoRepository.ExisteConflictoHorarioAsync(
-            dto.ProfesionalId, dto.FechaHoraInicio, fechaHoraFin);
-
-        if (hayConflicto)
-        {
-            throw new InvalidOperationException(
-                "El profesional ya tiene un turno en el horario seleccionado. Por favor elija otro horario.");
-        }
-
         // La seña solo aplica a turnos web; los creados por admin/profesional no la requieren
         decimal? montoSena = null;
-        if (dto.Origen == OrigenTurno.Web && servicio.RequiereSena && servicio.TipoSena.HasValue && servicio.ValorSena.HasValue)
+        if (origen == OrigenTurno.Web && servicio.RequiereSena && servicio.TipoSena.HasValue && servicio.ValorSena.HasValue)
         {
             montoSena = servicio.TipoSena == TipoSena.Fija
                 ? servicio.ValorSena.Value
@@ -148,9 +165,9 @@ public class TurnoService
         var modo = sucursalConfig?.ConfiguracionSucursal?.ModoConfirmacionTurnos
                    ?? ModoConfirmacionTurnos.Automatico;
         EstadoTurno estadoInicial;
-        if (dto.Origen == OrigenTurno.Web && servicio.RequiereSena)
+        if (origen == OrigenTurno.Web && servicio.RequiereSena)
             estadoInicial = EstadoTurno.PendientePago;
-        else if (dto.Origen == OrigenTurno.Web && modo == ModoConfirmacionTurnos.Manual)
+        else if (origen == OrigenTurno.Web && modo == ModoConfirmacionTurnos.Manual)
             estadoInicial = EstadoTurno.Pendiente;
         else
             estadoInicial = EstadoTurno.Confirmado;
@@ -165,7 +182,7 @@ public class TurnoService
             FechaHoraInicio = dto.FechaHoraInicio,
             FechaHoraFin = fechaHoraFin,
             Estado = estadoInicial,
-            Origen = dto.Origen,
+            Origen = origen,
             Observaciones = dto.Observaciones,
             TokenGestion = Guid.NewGuid().ToString("N"),
             PrecioServicio = servicio.Precio,
@@ -174,8 +191,31 @@ public class TurnoService
             FechaCreacion = DateTime.Now
         };
 
-        await _turnoRepository.AddAsync(turno);
-        await _turnoRepository.SaveChangesAsync();
+        // M-03: TransactionScope serializable — evita race condition TOCTOU entre el check
+        // de conflicto y el insert. PostgreSQL bloquea el rango de fechas durante la transacción,
+        // por lo que un segundo request concurrente para el mismo profesional/horario bloqueará
+        // hasta que el primero confirme o revierta.
+        using (var ts = new TransactionScope(
+            TransactionScopeOption.Required,
+            new TransactionOptions
+            {
+                IsolationLevel = IsolationLevel.Serializable,
+                Timeout        = TimeSpan.FromSeconds(30)
+            },
+            TransactionScopeAsyncFlowOption.Enabled))
+        {
+            var hayConflicto = await _turnoRepository.ExisteConflictoHorarioAsync(
+                dto.ProfesionalId, dto.FechaHoraInicio, fechaHoraFin);
+
+            if (hayConflicto)
+                throw new InvalidOperationException(
+                    "El profesional ya tiene un turno en el horario seleccionado. Por favor elija otro horario.");
+
+            await _turnoRepository.AddAsync(turno);
+            await _turnoRepository.SaveChangesAsync();
+
+            ts.Complete();
+        }
 
         // Recargar con relaciones para tener Profesional incluido
         var turnoCompleto = await _turnoRepository.GetByIdConRelacionesAsync(turno.Id) ?? turno;

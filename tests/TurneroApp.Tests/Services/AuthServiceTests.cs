@@ -44,6 +44,26 @@ public class AuthServiceTests
         _usrRepo.Verify(r => r.GetByUsuarioAsync(It.IsAny<Guid>()), Times.Never());
     }
 
+    /// <summary>
+    /// C-05 — SuperAdmin con contraseña incorrecta → UnauthorizedAccessException.
+    /// Verifica que AuthService usa BCrypt.Verify (tiempo constante) y NO el
+    /// operador == (vulnerable a timing attacks) para validar la contraseña del SA.
+    /// </summary>
+    [Fact]
+    public async Task ValidarAsync_SuperAdmin_PasswordIncorrecta_LanzaUnauthorized()
+    {
+        // Arrange
+        var dto = new LoginDto { Email = SaEmail, Password = "PasswordIncorrecto" };
+
+        // Act
+        var act = () => _sut.ValidarAsync(dto);
+
+        // Assert
+        await act.Should()
+            .ThrowAsync<UnauthorizedAccessException>(
+                "credenciales incorrectas de SuperAdmin deben rechazarse con UnauthorizedAccessException");
+    }
+
     [Fact]
     public async Task ValidarAsync_EmailNoExiste_LanzaUnauthorized()
     {

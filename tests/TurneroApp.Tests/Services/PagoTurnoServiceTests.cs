@@ -128,7 +128,8 @@ public class PagoTurnoServiceTests
             "debe reutilizar el checkout URL ya generado (idempotencia)");
         _mpGateway.Verify(g => g.CrearPreferenciaAsync(
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<decimal>(),
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(),
+            It.IsAny<string?>(), It.IsAny<string?>()),
             Times.Never,
             "no debe crear una nueva preferencia si ya existe una");
     }
@@ -140,7 +141,8 @@ public class PagoTurnoServiceTests
         _turnoRepo.Setup(r => r.GetByIdConRelacionesAsync(turno.Id)).ReturnsAsync(turno);
         _mpGateway.Setup(g => g.CrearPreferenciaAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<decimal>(),
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(),
+                It.IsAny<string?>(), It.IsAny<string?>()))
             .ReturnsAsync(("nueva-pref-456", "https://checkout.test/nueva-pref-456"));
 
         var result = await _sut.GenerarLinkDePagoAsync(turno.Id);
@@ -159,14 +161,16 @@ public class PagoTurnoServiceTests
         _turnoRepo.Setup(r => r.GetByIdConRelacionesAsync(turno.Id)).ReturnsAsync(turno);
         _mpGateway.Setup(g => g.CrearPreferenciaAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<decimal>(),
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(),
+                It.IsAny<string?>(), It.IsAny<string?>()))
             .ReturnsAsync(("pref-monto", "https://checkout.test/monto"));
 
         await _sut.GenerarLinkDePagoAsync(turno.Id);
 
         _mpGateway.Verify(g => g.CrearPreferenciaAsync(
             It.IsAny<string>(), It.IsAny<string>(), 2000m,
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(),
+            It.IsAny<string?>(), It.IsAny<string?>()),
             Times.Once,
             "el monto pasado al gateway debe ser el de la seña, no el precio completo");
     }
@@ -179,14 +183,16 @@ public class PagoTurnoServiceTests
         _turnoRepo.Setup(r => r.GetByIdConRelacionesAsync(turno.Id)).ReturnsAsync(turno);
         _mpGateway.Setup(g => g.CrearPreferenciaAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<decimal>(),
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(),
+                It.IsAny<string?>(), It.IsAny<string?>()))
             .ReturnsAsync(("pref-precio", "https://checkout.test/precio"));
 
         await _sut.GenerarLinkDePagoAsync(turno.Id);
 
         _mpGateway.Verify(g => g.CrearPreferenciaAsync(
             It.IsAny<string>(), It.IsAny<string>(), 5000m,
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(),
+            It.IsAny<string?>(), It.IsAny<string?>()),
             Times.Once,
             "sin seña configurada, se cobra el precio completo del servicio");
     }

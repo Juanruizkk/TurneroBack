@@ -61,5 +61,11 @@ public class ServicioConfiguration : IEntityTypeConfiguration<Servicio>
             .WithOne(t => t.Servicio)
             .HasForeignKey(t => t.ServicioId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // B-02: concurrencia optimista — usa la columna de sistema xmin de PostgreSQL.
+        builder.Property(s => s.RowVersion)
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .IsRowVersion();
     }
 }

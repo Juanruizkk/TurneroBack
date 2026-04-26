@@ -183,11 +183,31 @@ Se usa `PagoRechazado` en lugar de `CanceladoCliente` para distinguir en reporte
 
 Una vez que el turno pasa a `PagoRechazado`, el slot queda disponible para nuevas reservas porque `ExisteConflictoHorarioAsync` y `GetActivosSucursalEnRangoAsync` excluyen ese estado de los conflictos de horario.
 
-### Método de repositorio
+### Auto-purga de clientes fantasma
 
-`ITurnoRepository.GetPendientePagoVencidosAsync(DateTime limite)`
+Inmediatamente después de expirar los turnos, el servicio llama a `IClienteRepository.PurgarClientesFantasmaAsync` con los IDs de los clientes del lote.
 
-Devuelve los turnos en estado `PendientePago` con `FechaCreacion` anterior a `limite`.
+Un cliente se purga si cumple **ambas** condiciones:
+- No tiene turnos en estados bloqueantes: `Pendiente`, `Confirmado`, `Completado`, `NoShow`, `Reprogramado`
+- No tiene ningún `PagoTurno` registrado
+
+Si es purgable, se eliminan primero sus turnos no críticos (`PagoRechazado`, `PendientePago`, `CanceladoCliente`, `CanceladoStaff`) y luego el cliente. Los comentarios y adjuntos de esos turnos se eliminan en cascada a nivel DB.
+
+**Flujo dentro de `ExpirarTurnosAbandonadosAsync`:**
+
+```
+1. turnoRepo.GetPendientePagoVencidosAsync(limite)
+2. Cambiar estado → PagoRechazado
+3. turnoRepo.UpdateRange + SaveChangesAsync       ← estado persiste antes de evaluar
+4. clienteRepo.PurgarClientesFantasmaAsync(clienteIds del lote)
+```
+
+`turnoRepo` y `clienteRepo` resuelven del **mismo scope** → comparten la misma instancia de `AppDbContext`.
+
+### Métodos de repositorio
+
+- `ITurnoRepository.GetPendientePagoVencidosAsync(DateTime limite)` — turnos en estado `PendientePago` con `FechaCreacion` anterior a `limite`.
+- `IClienteRepository.PurgarClientesFantasmaAsync(IEnumerable<Guid> clienteIds)` — evalúa y elimina los clientes sin historial real del lote. Retorna la cantidad de clientes eliminados.
 
 ### Comportamiento ante errores
 
@@ -201,7 +221,7 @@ Los errores se capturan con `try/catch` y se loguean con `LogError`. El servicio
 |---|---|---|---|
 | **Frecuencia** | Diaria a las 3:00 AM | Cada 15 minutos | Cada 15 minutos |
 | **Primera ejecución** | A las 3:00 AM siguientes | Inmediatamente al arrancar | Después de 15 minutos |
-| **Dependencias** | `ITurnoRepository` | `ITurnoRepository` + `IEmailService` | `ITurnoRepository` |
-| **Persistencia** | Actualiza `Estado` del turno | Actualiza flags `Recordatorio*hEnviado` | Actualiza `Estado` del turno |
+| **Dependencias** | `ITurnoRepository` | `ITurnoRepository` + `IEmailService` | `ITurnoRepository` + `IClienteRepository` |
+| **Persistencia** | Actualiza `Estado` del turno | Actualiza flags `Recordatorio*hEnviado` | Actualiza `Estado` del turno + elimina clientes fantasma |
 | **Fallo de email** | N/A | No marca el flag → reintento automático | N/A |
 | **Fallo de DB** | Se loguea, reintenta al día siguiente | Se loguea, reintenta en 15 min | Se loguea, reintenta en 15 min |

@@ -10,4 +10,10 @@ public class ClienteResponseDto
     public string? Email { get; set; }
     public string? Observaciones { get; set; }
     public string NombreCompleto => $"{Nombre} {Apellido}".Trim();
+    public bool Activo { get; set; }
+    public DateTime? FechaArchivado { get; set; }
+    public bool EsFrecuente { get; set; }
+    public bool TieneNoShow { get; set; }
+    public int TotalTurnos { get; set; }
+    public DateTime? UltimaVisita { get; set; }
 }

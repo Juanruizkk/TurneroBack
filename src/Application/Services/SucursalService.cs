@@ -109,7 +109,7 @@ public class SucursalService
         sucursal.Direccion = dto.Direccion;
         sucursal.Telefono = dto.Telefono;
         sucursal.Email = dto.Email;
-        sucursal.Activa = dto.Activa;
+        // Activa no se modifica aquí — requiere acción de SuperAdmin
 
         _sucursalRepository.Update(sucursal);
         await _sucursalRepository.SaveChangesAsync();

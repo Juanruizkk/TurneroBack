@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Ajustes;
@@ -20,10 +21,30 @@ public class AjustesController : ControllerBase
         _sucursalService = sucursalService;
     }
 
+    /// <summary>
+    /// Verifica que el usuario autenticado tenga acceso a la sucursal solicitada.
+    /// Los SuperAdmins pueden acceder a cualquier sucursal.
+    /// Devuelve ForbidResult si el acceso no está permitido, null si está OK.
+    /// </summary>
+    private IActionResult? ValidarAccesoSucursal(Guid sucursalId)
+    {
+        var esSuperAdmin = User.FindFirstValue("esSuperAdmin") == "true";
+        if (esSuperAdmin) return null;
+
+        var claimSucursalId = User.FindFirstValue("sucursalId");
+        if (!Guid.TryParse(claimSucursalId, out var tokenSucursalId) || tokenSucursalId != sucursalId)
+            return Forbid();
+
+        return null;
+    }
+
     /// <summary>Obtiene los ajustes completos de una sucursal.</summary>
     [HttpGet]
     public async Task<IActionResult> Obtener([FromQuery] Guid sucursalId)
     {
+        var check = ValidarAccesoSucursal(sucursalId);
+        if (check is not null) return check;
+
         try
         {
             var result = await _service.ObtenerAsync(sucursalId);
@@ -39,6 +60,9 @@ public class AjustesController : ControllerBase
     [HttpPut]
     public async Task<IActionResult> Actualizar([FromQuery] Guid sucursalId, [FromBody] ActualizarAjustesDto dto)
     {
+        var check = ValidarAccesoSucursal(sucursalId);
+        if (check is not null) return check;
+
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
@@ -66,6 +90,9 @@ public class AjustesController : ControllerBase
         [FromQuery] string tipo,
         IFormFile? file)
     {
+        var check = ValidarAccesoSucursal(sucursalId);
+        if (check is not null) return check;
+
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "No se recibió ningún archivo." });
 
@@ -95,6 +122,9 @@ public class AjustesController : ControllerBase
         [FromQuery] Guid sucursalId,
         [FromQuery] string tipo)
     {
+        var check = ValidarAccesoSucursal(sucursalId);
+        if (check is not null) return check;
+
         if (!tipo.Equals("logo", StringComparison.OrdinalIgnoreCase) &&
             !tipo.Equals("background", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "El parámetro 'tipo' debe ser 'logo' o 'background'." });
@@ -116,6 +146,9 @@ public class AjustesController : ControllerBase
     [HttpGet("slug")]
     public async Task<IActionResult> ObtenerSlug([FromQuery] Guid sucursalId)
     {
+        var check = ValidarAccesoSucursal(sucursalId);
+        if (check is not null) return check;
+
         try
         {
             var slug = await _sucursalService.ObtenerSlugAsync(sucursalId);
@@ -135,6 +168,9 @@ public class AjustesController : ControllerBase
         [FromQuery] Guid sucursalId,
         [FromQuery] string slug)
     {
+        var check = ValidarAccesoSucursal(sucursalId);
+        if (check is not null) return check;
+
         if (string.IsNullOrWhiteSpace(slug))
             return BadRequest(new { message = "El slug no puede estar vacío." });
 
@@ -148,6 +184,9 @@ public class AjustesController : ControllerBase
         [FromQuery] Guid sucursalId,
         [FromBody] ActualizarSlugDto dto)
     {
+        var check = ValidarAccesoSucursal(sucursalId);
+        if (check is not null) return check;
+
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 

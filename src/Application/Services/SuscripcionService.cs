@@ -77,16 +77,16 @@ public class SuscripcionService
 
         // Transición de estado lazy
         var ahora = DateTime.UtcNow;
+        // La suscripción fue cargada con tracking → solo asignar y guardar; NO llamar a Update()
+        // para no marcar el grafo completo (incluyendo Plan) como Modified.
         if (suscripcion.Estado == EstadoSuscripcion.PruebActiva && ahora > suscripcion.FechaVencimiento)
         {
             suscripcion.Estado = EstadoSuscripcion.PruebVencida;
-            _repo.Update(suscripcion);
             await _repo.SaveChangesAsync();
         }
         else if (suscripcion.Estado == EstadoSuscripcion.Activa && ahora > suscripcion.FechaVencimiento)
         {
             suscripcion.Estado = EstadoSuscripcion.Vencida;
-            _repo.Update(suscripcion);
             await _repo.SaveChangesAsync();
         }
 

@@ -92,13 +92,13 @@ internal static class SeedHelper
     }
     public static async Task<Plan> SeedPlanAsync(
         AppDbContext db, int? maxTurnosMes = null,
-        int maxUsuarios = 10, int? maxServicios = null)
+        int maxUsuarios = 10)
     {
         var plan = new Plan
         {
             Id = Guid.NewGuid(), Nombre = "Plan Test",
             MaxTurnosMes = maxTurnosMes, MaxUsuarios = maxUsuarios,
-            MaxServicios = maxServicios, PrecioMensual = 0, EsActivo = true,
+            PrecioMensual = 0, EsActivo = true,
         };
         db.Planes.Add(plan);
         await db.SaveChangesAsync();
@@ -135,12 +135,14 @@ internal static class SeedHelper
         return sus;
     }
 
-    public static async Task<Cliente> SeedClienteAsync(AppDbContext db, Guid sucursalId)
+    public static async Task<Cliente> SeedClienteAsync(
+        AppDbContext db, Guid sucursalId, bool activo = true)
     {
         var c = new Cliente
         {
             Id = Guid.NewGuid(), SucursalId = sucursalId,
             Nombre = "Juan", Apellido = "Test", Telefono = "1111111111",
+            Activo = activo,
         };
         db.Clientes.Add(c);
         await db.SaveChangesAsync();
@@ -148,14 +150,15 @@ internal static class SeedHelper
     }
 
     public static async Task<Servicio> SeedServicioAsync(
-        AppDbContext db, Guid sucursalId, int duracionAgendaMin = 30)
+        AppDbContext db, Guid sucursalId, int duracionAgendaMin = 30, bool activo = true)
     {
         var s = new Servicio
         {
             Id = Guid.NewGuid(), SucursalId = sucursalId,
-            Nombre = "Corte", Descripcion = string.Empty, Aclaraciones = string.Empty,
+            Nombre = $"Servicio-{Guid.NewGuid():N}",
+            Descripcion = string.Empty, Aclaraciones = string.Empty,
             Precio = 5000m, DuracionClienteMin = duracionAgendaMin,
-            DuracionAgendaMin = duracionAgendaMin, RequiereSena = false, Activo = true,
+            DuracionAgendaMin = duracionAgendaMin, RequiereSena = false, Activo = activo,
             ModalidadPrestacion = ModalidadPrestacion.Presencial,
             TipoServicio = TipoServicio.Regular,
         };
@@ -177,6 +180,19 @@ internal static class SeedHelper
         db.Usuarios.Add(u);
         await db.SaveChangesAsync();
         return u;
+    }
+
+    /// <summary>
+    /// Seed completo de un profesional: crea un <see cref="Usuario"/> y su
+    /// <see cref="UsuarioSucursalRol"/> vinculado a la sucursal indicada.
+    /// Necesario para tests HTTP donde <c>TurnoService</c> valida la membresía.
+    /// </summary>
+    public static async Task<UsuarioSucursalRol> SeedProfesionalConUSRAsync(
+        AppDbContext db, Guid sucursalId)
+    {
+        var u = await SeedProfesionalAsync(db);
+        return await SeedUsuarioSucursalRolAsync(db, sucursalId, u.Id,
+            rol: RolUsuario.Profesional);
     }
 
     public static async Task<Turno> SeedTurnoAsync(

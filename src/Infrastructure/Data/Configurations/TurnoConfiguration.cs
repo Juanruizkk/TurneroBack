@@ -107,5 +107,12 @@ public class TurnoConfiguration : IEntityTypeConfiguration<Turno>
             .WithMany(u => u.TurnosComoProfesional)
             .HasForeignKey(t => t.ProfesionalId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // B-02: concurrencia optimista — usa la columna de sistema xmin de PostgreSQL.
+        // xmin se incrementa automáticamente en cada UPDATE, sin necesidad de columna extra.
+        builder.Property(t => t.RowVersion)
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .IsRowVersion();
     }
 }

@@ -25,6 +25,15 @@ public class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
             .IsRequired()
             .HasMaxLength(50);
 
+        builder.Property(c => c.Activo)
+            .IsRequired()
+            .HasDefaultValue(true);
+
+        builder.Property(c => c.FechaArchivado)
+            .IsRequired(false);
+
+        // Unicidad de teléfono por sucursal se valida en capa de servicio.
+        // Para agregar el constraint de DB, limpiar datos duplicados y crear una nueva migración con .IsUnique().
         builder.HasIndex(c => new { c.SucursalId, c.Telefono });
 
         builder.Property(c => c.Email)

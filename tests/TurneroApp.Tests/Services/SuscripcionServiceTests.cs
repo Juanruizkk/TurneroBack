@@ -81,7 +81,8 @@ public class SuscripcionServiceTests
         var result = await _sut.ObtenerAsync(Guid.NewGuid());
 
         result.Estado.Should().Be("PruebVencida");
-        _repo.Verify(r => r.Update(It.Is<SucursalSuscripcion>(s => s.Estado == EstadoSuscripcion.PruebVencida)), Times.Once());
+        // El service usa tracking de EF: muta la entidad cargada y llama SaveChanges directamente
+        // sin llamar a repo.Update() para evitar marcar el grafo completo (Plan incluido) como Modified
         _repo.Verify(r => r.SaveChangesAsync(), Times.Once());
     }
 
@@ -103,7 +104,6 @@ public class SuscripcionServiceTests
         var result = await _sut.ObtenerAsync(Guid.NewGuid());
 
         result.Estado.Should().Be("Vencida");
-        _repo.Verify(r => r.Update(It.Is<SucursalSuscripcion>(s => s.Estado == EstadoSuscripcion.Vencida)), Times.Once());
         _repo.Verify(r => r.SaveChangesAsync(), Times.Once());
     }
 }

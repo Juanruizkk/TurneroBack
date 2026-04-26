@@ -39,24 +39,35 @@ public class TurnoPagoExpirationService : BackgroundService
     internal async Task ExpirarTurnosAbandonadosAsync()
     {
         using var scope = _scopeFactory.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<ITurnoRepository>();
+        var turnoRepo   = scope.ServiceProvider.GetRequiredService<ITurnoRepository>();
+        var clienteRepo = scope.ServiceProvider.GetRequiredService<IClienteRepository>();
 
         try
         {
             var limite   = DateTime.Now.AddMinutes(-TimeoutMinutos);
-            var vencidos = (await repo.GetPendientePagoVencidosAsync(limite)).ToList();
+            var vencidos = (await turnoRepo.GetPendientePagoVencidosAsync(limite)).ToList();
 
             if (vencidos.Count == 0) return;
 
+            // 1. Marcar turnos como PagoRechazado
             foreach (var turno in vencidos)
                 turno.Estado = EstadoTurno.PagoRechazado;
 
-            repo.UpdateRange(vencidos);
-            await repo.SaveChangesAsync();
+            turnoRepo.UpdateRange(vencidos);
+            await turnoRepo.SaveChangesAsync();
 
             _logger.LogInformation(
                 "TurnoPagoExpirationService: {Count} turno(s) PendientePago expirados → PagoRechazado.",
                 vencidos.Count);
+
+            // 2. Purgar clientes fantasma (sin historial real) de ese lote
+            var clienteIds = vencidos.Select(t => t.ClienteId).Distinct();
+            var eliminados = await clienteRepo.PurgarClientesFantasmaAsync(clienteIds);
+
+            if (eliminados > 0)
+                _logger.LogInformation(
+                    "TurnoPagoExpirationService: {Count} cliente(s) fantasma eliminados automáticamente.",
+                    eliminados);
         }
         catch (Exception ex)
         {
