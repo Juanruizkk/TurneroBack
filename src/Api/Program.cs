@@ -373,8 +373,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
    .AllowAnonymous()
    .ExcludeFromDescription();
 
-// ─── Auto-migrate on startup (development only) ───────────────────────────────
-if (app.Environment.IsDevelopment())
+// ─── Auto-migrate on startup ──────────────────────────────────────────────────
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
