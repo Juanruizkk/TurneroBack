@@ -333,6 +333,20 @@ var app = builder.Build();
             "Los links de invitación apuntarán a localhost. " +
             "Actualizá este valor para producción.",
             frontendUrlCfg);
+
+    var saEmailCfg = app.Configuration["SuperAdmin:Email"] ?? "";
+    if (string.IsNullOrWhiteSpace(saEmailCfg))
+        startupLogger.LogWarning(
+            "SuperAdmin:Email no está configurado (env var SuperAdmin__Email). " +
+            "El login de SuperAdmin no funcionará.");
+    else
+        startupLogger.LogInformation("SuperAdmin configurado: {Email}", saEmailCfg);
+
+    var saPassCfg = app.Configuration["SuperAdmin:Password"] ?? "";
+    if (string.IsNullOrWhiteSpace(saPassCfg))
+        startupLogger.LogWarning(
+            "SuperAdmin:Password no está configurado (env var SuperAdmin__Password). " +
+            "El login de SuperAdmin no funcionará.");
 }
 
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────
