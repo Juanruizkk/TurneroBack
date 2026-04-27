@@ -118,7 +118,11 @@ public class WebhooksController : ControllerBase
 
         var xSignature = Request.Headers["x-signature"].FirstOrDefault();
         var xRequestId = Request.Headers["x-request-id"].FirstOrDefault();
-        if (!ValidarFirmaWebhook(xSignature, xRequestId, rawId, _mpOptions.MasterWebhookSecret))
+        // Si MasterWebhookSecret no está configurado, se usa WebhookSecret como fallback
+        var masterSecret = string.IsNullOrEmpty(_mpOptions.MasterWebhookSecret)
+            ? _mpOptions.WebhookSecret
+            : _mpOptions.MasterWebhookSecret;
+        if (!ValidarFirmaWebhook(xSignature, xRequestId, rawId, masterSecret))
         {
             _logger.LogWarning(
                 "Firma inválida en webhook de suscripción. PaymentId={RawId}", rawId);
