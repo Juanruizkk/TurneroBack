@@ -228,6 +228,11 @@ public class ConsoleEmailService : IEmailService
             ║  Nombre:  {Nombre}
             ║  Negocio: {Negocio}
             ║  Panel:   {Panel}
+            ╠══════════════════════════════════════════════════════╣
+            ║  Pasos de configuración inicial:                      ║
+            ║  1. Completá el perfil → {Panel}/admin/ajustes
+            ║  2. Creá tu primer servicio → {Panel}/admin/servicios
+            ║  3. Invitá a tu equipo → {Panel}/admin/equipo
             ╚══════════════════════════════════════════════════════╝
             """,
             destinatarioEmail, destinatarioNombre, nombreNegocio, urlPanel);

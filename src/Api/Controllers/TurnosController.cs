@@ -74,6 +74,31 @@ public class TurnosController : ControllerBase
     }
 
     /// <summary>
+    /// Cancela un turno identificado por su token de gestión (uso público, sin autenticación).
+    /// El cliente prueba su propiedad del turno mediante el token.
+    /// </summary>
+    [HttpPost("by-token/{token}/cancelar")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(TurnoPublicoResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CancelarPorToken(string token)
+    {
+        try
+        {
+            var turno = await _turnoService.CancelarPorTokenAsync(token);
+            return Ok(turno);
+        }
+        catch (InvalidOperationException ex)
+        {
+            var mensaje = ex.Message.Contains("no se encontró") || ex.Message.Contains("No se encontró")
+                ? (IActionResult)NotFound(new { message = ex.Message })
+                : BadRequest(new { message = ex.Message });
+            return mensaje;
+        }
+    }
+
+    /// <summary>
     /// Crea un nuevo turno. Valida que no existan conflictos de horario con el profesional.
     /// Endpoint accesible para usuarios autenticados (staff → Presencial) y anónimos (clientes online → Web).
     /// </summary>
