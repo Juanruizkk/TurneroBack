@@ -58,13 +58,78 @@ public class ResendEmailService : IEmailService
     {
         var asunto = $"¡Bienvenido a MetaTurnos, {destinatarioNombre}!";
         var cuerpo = $"""
-            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
-              <h2 style="color:#2F7D6B;margin-bottom:8px">¡Hola {destinatarioNombre}!</h2>
-              <p style="color:#374151">Tu cuenta de <strong>{nombreNegocio}</strong> en MetaTurnos está lista. Ya podés comenzar a gestionar tus turnos.</p>
-              <a href="{urlPanel}/admin" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2F7D6B;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">
-                Ir al panel
-              </a>
-              <p style="margin-top:24px;color:#9ca3af;font-size:13px">Si no creaste esta cuenta, podés ignorar este email.</p>
+            <div style="font-family:sans-serif;max-width:580px;margin:0 auto;background:#f9fafb;padding:0">
+
+              <!-- Header -->
+              <div style="background:#1A1A2E;padding:32px 24px;text-align:center;border-radius:8px 8px 0 0">
+                <h1 style="color:#2F7D6B;margin:0;font-size:24px;letter-spacing:-0.5px">MetaTurnos</h1>
+              </div>
+
+              <!-- Body -->
+              <div style="background:#ffffff;padding:36px 32px">
+                <h2 style="color:#111827;margin:0 0 8px;font-size:20px">¡Hola {destinatarioNombre}!</h2>
+                <p style="color:#374151;margin:0 0 24px;line-height:1.6">
+                  Tu cuenta de <strong>{nombreNegocio}</strong> en MetaTurnos fue creada exitosamente.
+                  Para empezar a recibir turnos, completá estos 3 pasos de configuración inicial:
+                </p>
+
+                <!-- Pasos -->
+                <table style="width:100%;border-collapse:collapse">
+                  <tr>
+                    <td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#f0fdf4;vertical-align:top;margin-bottom:8px">
+                      <div style="display:flex;align-items:center;gap:12px">
+                        <span style="font-size:20px">1️⃣</span>
+                        <div>
+                          <strong style="color:#111827;font-size:14px">Completá el perfil de tu negocio</strong><br>
+                          <span style="color:#6b7280;font-size:13px">Agregá teléfono, dirección y foto para que tus clientes te encuentren.</span><br>
+                          <a href="{urlPanel}/admin/ajustes" style="color:#2F7D6B;font-size:13px;font-weight:600;text-decoration:none;">→ Ir a Ajustes</a>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr><td style="height:8px"></td></tr>
+                  <tr>
+                    <td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#f0fdf4;vertical-align:top">
+                      <div style="display:flex;align-items:center;gap:12px">
+                        <span style="font-size:20px">2️⃣</span>
+                        <div>
+                          <strong style="color:#111827;font-size:14px">Creá tu primer servicio</strong><br>
+                          <span style="color:#6b7280;font-size:13px">Definí los servicios que ofrecés, con duración y precio.</span><br>
+                          <a href="{urlPanel}/admin/servicios" style="color:#2F7D6B;font-size:13px;font-weight:600;text-decoration:none;">→ Ir a Servicios</a>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr><td style="height:8px"></td></tr>
+                  <tr>
+                    <td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#f0fdf4;vertical-align:top">
+                      <div style="display:flex;align-items:center;gap:12px">
+                        <span style="font-size:20px">3️⃣</span>
+                        <div>
+                          <strong style="color:#111827;font-size:14px">Invitá a tu equipo</strong><br>
+                          <span style="color:#6b7280;font-size:13px">Sumá profesionales y configurá sus horarios de trabajo.</span><br>
+                          <a href="{urlPanel}/admin/equipo" style="color:#2F7D6B;font-size:13px;font-weight:600;text-decoration:none;">→ Ir a Equipo</a>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- CTA -->
+                <div style="text-align:center;margin-top:28px">
+                  <a href="{urlPanel}/admin" style="display:inline-block;padding:13px 28px;background:#2F7D6B;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">
+                    Ir al panel de administración
+                  </a>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div style="padding:20px 24px;text-align:center">
+                <p style="color:#9ca3af;font-size:12px;margin:0">
+                  MetaTurnos · Si no creaste esta cuenta podés ignorar este email.
+                </p>
+              </div>
+
             </div>
             """;
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
@@ -178,21 +243,20 @@ public class ResendEmailService : IEmailService
         var horaStr  = $"{inicio:HH:mm} – {fin:HH:mm}";
 
         var cancelBlock = string.IsNullOrWhiteSpace(cancelUrl) ? string.Empty : $"""
-                        <!-- Cancel link -->
-                        <table cellpadding="0" cellspacing="0" style="margin-top:20px;">
+                        <table cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid #e4e4e7;padding-top:20px;width:100%;">
                           <tr>
-                            <td style="border-radius:8px;border:1.5px solid #f1b5c0;">
+                            <td>
+                              <p style="margin:0 0 12px;font-size:13px;color:#71717a;">¿Necesitás cancelar tu turno?</p>
                               <a href="{cancelUrl}"
-                                 style="display:inline-block;padding:11px 28px;color:#2F7D6B;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
-                                Cancelar mi turno
+                                 style="display:inline-block;padding:11px 24px;background:#fff1f2;color:#b91c1c;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;border:1.5px solid #fecaca;">
+                                Cancelar turno
                               </a>
+                              <p style="margin:12px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5;">
+                                Este enlace es personal y de un solo uso. Si no querés cancelar, ignorá este mensaje.
+                              </p>
                             </td>
                           </tr>
                         </table>
-                        <p style="margin:12px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5;">
-                          Si no querés cancelar, ignorá este mensaje. El enlace de cancelación
-                          es personal y no lo compartas.
-                        </p>
             """;
 
         return $"""
@@ -541,19 +605,20 @@ public class ResendEmailService : IEmailService
             : $"Hola <strong>{nombre}</strong>, en menos de 3 horas tenés tu turno. ¡No lo olvides!";
 
         var cancelBlock = string.IsNullOrWhiteSpace(cancelUrl) ? string.Empty : $"""
-                        <table cellpadding="0" cellspacing="0" style="margin-top:20px;">
+                        <table cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid #e4e4e7;padding-top:20px;width:100%;">
                           <tr>
-                            <td style="border-radius:8px;border:1.5px solid #f1b5c0;">
+                            <td>
+                              <p style="margin:0 0 12px;font-size:13px;color:#71717a;">¿Necesitás cancelar tu turno?</p>
                               <a href="{cancelUrl}"
-                                 style="display:inline-block;padding:11px 28px;color:#2F7D6B;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
-                                Cancelar mi turno
+                                 style="display:inline-block;padding:11px 24px;background:#fff1f2;color:#b91c1c;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;border:1.5px solid #fecaca;">
+                                Cancelar turno
                               </a>
+                              <p style="margin:12px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5;">
+                                Este enlace es personal y de un solo uso. Si no querés cancelar, ignorá este mensaje.
+                              </p>
                             </td>
                           </tr>
                         </table>
-                        <p style="margin:12px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5;">
-                          Si no querés cancelar, ignorá este mensaje. El enlace es personal, no lo compartas.
-                        </p>
             """;
 
         return $"""

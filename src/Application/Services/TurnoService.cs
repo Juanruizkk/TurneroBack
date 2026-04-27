@@ -98,6 +98,85 @@ public class TurnoService
         };
     }
 
+    /// <summary>
+    /// Cancela un turno identificado por su token de gestión (uso público del cliente).
+    /// Lanza <see cref="InvalidOperationException"/> si el token no existe o el turno ya no es cancelable.
+    /// </summary>
+    public async Task<TurnoPublicoResponseDto> CancelarPorTokenAsync(string token)
+    {
+        var turno = await _turnoRepository.GetByTokenAsync(token)
+            ?? throw new InvalidOperationException("No se encontró un turno con ese enlace.");
+
+        var estadosNoCancelables = new[]
+        {
+            EstadoTurno.CanceladoCliente, EstadoTurno.CanceladoStaff,
+            EstadoTurno.Completado, EstadoTurno.NoShow,
+        };
+        if (estadosNoCancelables.Contains(turno.Estado))
+            throw new InvalidOperationException("Este turno no puede cancelarse porque ya fue cancelado o completado.");
+
+        turno.Estado       = EstadoTurno.CanceladoCliente;
+        turno.Observaciones = string.IsNullOrWhiteSpace(turno.Observaciones)
+            ? "Cancelado por el cliente vía enlace de gestión"
+            : turno.Observaciones + " | Cancelado por el cliente";
+
+        _turnoRepository.Update(turno);
+        await _turnoRepository.SaveChangesAsync();
+
+        // Notificación por email (no-crítica)
+        if (turno.Cliente is not null && !string.IsNullOrWhiteSpace(turno.Cliente.Email))
+        {
+            try
+            {
+                var sucursalInfo   = await _sucursalRepository.GetByIdAsync(turno.SucursalId);
+                var sucursalNombre = sucursalInfo?.Nombre ?? "TurneroApp";
+                var servicioNombre = turno.Servicio?.Nombre ?? string.Empty;
+                var clienteNombre  = $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim();
+
+                await _emailService.EnviarCancelacionClienteAsync(
+                    turno.Cliente.Email, clienteNombre, sucursalNombre, servicioNombre, turno.FechaHoraInicio);
+
+                var profesional  = turno.Profesional;
+                var alertaEmail  = !string.IsNullOrWhiteSpace(profesional?.Email)
+                    ? profesional!.Email
+                    : sucursalInfo?.Email;
+
+                if (!string.IsNullOrWhiteSpace(alertaEmail))
+                {
+                    var alertaNombre = profesional is not null
+                        ? $"{profesional.Nombre} {profesional.Apellido}".Trim()
+                        : sucursalNombre;
+                    await _emailService.EnviarAlertaLiberacionAgendaAsync(
+                        alertaEmail, alertaNombre, sucursalNombre, servicioNombre,
+                        clienteNombre, turno.FechaHoraInicio);
+                }
+            }
+            catch { /* email no-crítico */ }
+        }
+
+        // Notificación en tiempo real (no-crítica)
+        if (_notificaciones is not null)
+        {
+            try { await _notificaciones.NotificarCancelacionAsync(MapToResponse(turno)); }
+            catch { }
+        }
+
+        return new TurnoPublicoResponseDto
+        {
+            ClienteNombre     = turno.Cliente is not null
+                ? $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim()
+                : string.Empty,
+            ServicioNombre    = turno.Servicio?.Nombre    ?? string.Empty,
+            ProfesionalNombre = turno.Profesional is not null
+                ? $"{turno.Profesional.Nombre} {turno.Profesional.Apellido}".Trim()
+                : string.Empty,
+            FechaHoraInicio   = turno.FechaHoraInicio,
+            FechaHoraFin      = turno.FechaHoraFin,
+            Estado            = turno.Estado,
+            Observaciones     = turno.Observaciones,
+        };
+    }
+
     public async Task<TurnoResponseDto> CreateAsync(CreateTurnoDto dto, OrigenTurno origen = OrigenTurno.Web)
     {
         if (_suscripcionGuard is not null)

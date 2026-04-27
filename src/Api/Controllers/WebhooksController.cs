@@ -91,6 +91,12 @@ public class WebhooksController : ControllerBase
     }
 
     /// <summary>
+    /// Verificación de URL que MP hace con GET antes de activar las notificaciones IPN.
+    /// </summary>
+    [HttpGet("mercadopago-suscripcion")]
+    public IActionResult MercadoPagoSuscripcionVerify() => Ok();
+
+    /// <summary>
     /// Endpoint que MP llama cuando se aprueba el pago de una suscripción de plan.
     /// Usa la cuenta propia del sistema (MasterAccessToken), no OAuth de sucursal.
     /// Siempre retorna 200 OK.
