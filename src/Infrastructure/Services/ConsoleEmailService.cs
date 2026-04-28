@@ -166,6 +166,37 @@ public class ConsoleEmailService : IEmailService
         return Task.CompletedTask;
     }
 
+    public Task EnviarNuevoTurnoStaffAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string clienteNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║      [DEV] NUEVO TURNO (notificación staff)          ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:     {Email}
+            ║  Nombre:   {Nombre}
+            ║  Sucursal: {Sucursal}
+            ║  Cliente:  {Cliente}
+            ║  Servicio: {Servicio}
+            ║  Inicio:   {Inicio}
+            ║  Fin:      {Fin}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, nombreSucursal,
+            clienteNombre, servicioNombre,
+            fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"),
+            fechaHoraFin.ToString("HH:mm"));
+
+        return Task.CompletedTask;
+    }
+
     public Task EnviarAlertaLiberacionAgendaAsync(
         string destinatarioEmail,
         string destinatarioNombre,
@@ -177,7 +208,7 @@ public class ConsoleEmailService : IEmailService
         _logger.LogWarning(
             """
             ╔══════════════════════════════════════════════════════╗
-            ║      [DEV] ALERTA SLOT LIBERADO (profesional)        ║
+            ║      [DEV] ALERTA HORARIO LIBERADO (profesional)     ║
             ╠══════════════════════════════════════════════════════╣
             ║  Para:     {Email}
             ║  Nombre:   {Nombre}

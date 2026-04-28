@@ -50,6 +50,16 @@ public interface IEmailService
         string servicioNombre,
         DateTime fechaHoraInicio);
 
+    /// <summary>Notifica al profesional (o sucursal) que se acaba de reservar un nuevo turno.</summary>
+    Task EnviarNuevoTurnoStaffAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string clienteNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin);
+
     /// <summary>Alerta al profesional (o sucursal) que un cliente canceló y el slot quedó libre.</summary>
     Task EnviarAlertaLiberacionAgendaAsync(
         string destinatarioEmail,

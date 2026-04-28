@@ -329,6 +329,28 @@ public class TurnoService
             }
         }
 
+        // Notificar al profesional/owner del nuevo turno
+        if (turnoCompleto.Profesional is not null && !string.IsNullOrWhiteSpace(turnoCompleto.Profesional.Email))
+        {
+            try
+            {
+                var sucursal      = await _sucursalRepository.GetByIdAsync(dto.SucursalId);
+                var sucursalNombre = sucursal?.Nombre ?? "TurneroApp";
+                await _emailService.EnviarNuevoTurnoStaffAsync(
+                    turnoCompleto.Profesional.Email,
+                    $"{turnoCompleto.Profesional.Nombre} {turnoCompleto.Profesional.Apellido}".Trim(),
+                    sucursalNombre,
+                    servicio.Nombre,
+                    $"{cliente.Nombre} {cliente.Apellido}".Trim(),
+                    turno.FechaHoraInicio,
+                    turno.FechaHoraFin);
+            }
+            catch
+            {
+                // El email es no-crítico
+            }
+        }
+
         var responseDto = MapToResponse(turnoCompleto);
 
         // Notificación en tiempo real solo si el turno quedó confirmado de inmediato
