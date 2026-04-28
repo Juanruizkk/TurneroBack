@@ -1,6 +1,7 @@
 using TurneroApp.Application.DTOs.Servicio;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Domain.Entities;
+using TurneroApp.Domain.Enums;
 
 namespace TurneroApp.Application.Services;
 
@@ -38,6 +39,7 @@ public class ServicioService
     public async Task<ServicioResponseDto> CreateAsync(CreateServicioDto dto)
     {
         await _suscripcionGuard.VerificarActivaAsync(dto.SucursalId);
+        ValidarSena(dto.RequiereSena, dto.TipoSena, dto.ValorSena, dto.Precio);
 
         var servicio = new Servicio
         {
@@ -66,6 +68,7 @@ public class ServicioService
     {
         var servicio = await _servicioRepository.GetByIdAsync(id);
         if (servicio is null) return null;
+        ValidarSena(dto.RequiereSena, dto.TipoSena, dto.ValorSena, dto.Precio);
 
         servicio.Nombre = dto.Nombre;
         servicio.Descripcion = dto.Descripcion;
@@ -94,6 +97,19 @@ public class ServicioService
         _servicioRepository.Update(servicio);
         await _servicioRepository.SaveChangesAsync();
         return true;
+    }
+
+    private static void ValidarSena(bool requiereSena, TipoSena? tipoSena, decimal? valorSena, decimal precio)
+    {
+        if (!requiereSena || tipoSena is null || valorSena is null) return;
+
+        if (tipoSena == TipoSena.Fija && valorSena > precio)
+            throw new InvalidOperationException(
+                $"La seña fija (${valorSena:N2}) no puede ser mayor al precio del servicio (${precio:N2}).");
+
+        if (tipoSena == TipoSena.Porcentaje && valorSena > 100)
+            throw new InvalidOperationException(
+                "El porcentaje de la seña no puede superar el 100%.");
     }
 
     private static ServicioResponseDto MapToResponse(Servicio s) => new()

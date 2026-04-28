@@ -227,4 +227,22 @@ public class SuperAdminController : ControllerBase
             return NotFound(new { message = ex.Message });
         }
     }
+
+    // POST /api/superadmin/suscripciones/{sucursalId}/extender
+    /// <summary>Extiende el vencimiento de la suscripción +30 días desde hoy.</summary>
+    [HttpPost("suscripciones/{sucursalId:guid}/extender")]
+    [ProducesResponseType(typeof(SuscripcionSuperAdminDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ExtenderVencimiento(Guid sucursalId)
+    {
+        try
+        {
+            var result = await _service.ExtenderVencimientoAsync(sucursalId);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
 }

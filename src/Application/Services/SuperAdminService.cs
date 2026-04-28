@@ -303,6 +303,26 @@ public class SuperAdminService
         };
     }
 
+    public async Task<SuscripcionSuperAdminDto> ExtenderVencimientoAsync(Guid sucursalId)
+    {
+        var suscripcion = await _suscripcionRepo.GetBySucursalAsync(sucursalId)
+            ?? throw new InvalidOperationException("No se encontró suscripción para la sucursal indicada.");
+
+        var now = DateTime.UtcNow;
+        var base_ = suscripcion.FechaVencimiento > now ? suscripcion.FechaVencimiento : now;
+        suscripcion.FechaVencimiento = base_.AddDays(30);
+        suscripcion.Estado           = EstadoSuscripcion.Activa;
+        suscripcion.EnPeriodoPrueba  = false;
+
+        _suscripcionRepo.Update(suscripcion);
+        await _suscripcionRepo.SaveChangesAsync();
+
+        var sucursal = await _sucursalRepo.GetByIdConOwnerAsync(sucursalId)
+            ?? throw new InvalidOperationException("Sucursal no encontrada.");
+
+        return MapSuscripcionToDto(suscripcion, DateTime.UtcNow);
+    }
+
     private static SuscripcionSuperAdminDto MapSuscripcionToDto(SucursalSuscripcion s, DateTime now) => new()
     {
         SucursalId       = s.SucursalId,
