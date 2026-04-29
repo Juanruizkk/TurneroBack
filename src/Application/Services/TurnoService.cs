@@ -329,8 +329,10 @@ public class TurnoService
             }
         }
 
-        // Notificar al profesional/owner del nuevo turno
-        if (turnoCompleto.Profesional is not null && !string.IsNullOrWhiteSpace(turnoCompleto.Profesional.Email))
+        // Notificar al profesional/owner del nuevo turno (solo si el turno ya quedó confirmado;
+        // si está PendientePago el aviso se envía cuando se confirme el pago en PagoTurnoService)
+        if (estadoInicial != EstadoTurno.PendientePago &&
+            turnoCompleto.Profesional is not null && !string.IsNullOrWhiteSpace(turnoCompleto.Profesional.Email))
         {
             try
             {

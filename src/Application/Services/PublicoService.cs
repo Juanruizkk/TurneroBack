@@ -238,6 +238,13 @@ public class PublicoService
         Guid clienteId;
         if (cliente is not null)
         {
+            // Actualizar nombre/apellido/email si el cliente ya existe y viene información nueva
+            cliente.Nombre   = dto.Nombre.Trim();
+            cliente.Apellido = dto.Apellido?.Trim() ?? cliente.Apellido;
+            if (!string.IsNullOrWhiteSpace(dto.Email))
+                cliente.Email = dto.Email.Trim();
+            _clienteRepo.Update(cliente);
+            await _clienteRepo.SaveChangesAsync();
             clienteId = cliente.Id;
         }
         else
