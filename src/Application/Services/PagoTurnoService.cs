@@ -274,21 +274,24 @@ public sealed class PagoTurnoService : IPagoTurnoService
         _logger.LogInformation(
             "Turno {TurnoId} confirmado via Mercado Pago (PaymentId: {PaymentId}).", turnoId, paymentId);
 
-        // Enviar email de confirmación al cliente
+        // Enviar emails de confirmación (cliente y staff) una vez que el pago fue aprobado
+        var sucursal         = await _sucursalRepo.GetByIdAsync(turno.SucursalId);
+        var sucursalNombre   = sucursal?.Nombre ?? "TurneroApp";
+        var clienteNombre    = turno.Cliente is not null
+            ? $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim()
+            : string.Empty;
+        var servicioNombre   = turno.Servicio?.Nombre ?? string.Empty;
+        var profesionalNombre = turno.Profesional is not null
+            ? $"{turno.Profesional.Nombre} {turno.Profesional.Apellido}".Trim()
+            : string.Empty;
+
+        // Email al cliente
         var clienteEmail = turno.Cliente?.Email;
         if (!string.IsNullOrWhiteSpace(clienteEmail))
         {
             try
             {
-                var sucursal         = await _sucursalRepo.GetByIdAsync(turno.SucursalId);
-                var sucursalNombre   = sucursal?.Nombre ?? "TurneroApp";
-                var clienteNombre    = $"{turno.Cliente!.Nombre} {turno.Cliente.Apellido}".Trim();
-                var servicioNombre   = turno.Servicio?.Nombre ?? string.Empty;
-                var profesionalNombre = turno.Profesional is not null
-                    ? $"{turno.Profesional.Nombre} {turno.Profesional.Apellido}".Trim()
-                    : string.Empty;
                 var cancelUrl = $"{_frontendUrl.TrimEnd('/')}/turno/{turno.TokenGestion}";
-
                 await _emailService.EnviarConfirmacionTurnoAsync(
                     clienteEmail,
                     clienteNombre,
@@ -301,7 +304,28 @@ public sealed class PagoTurnoService : IPagoTurnoService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "No se pudo enviar el email de confirmación para el turno {TurnoId}.", turnoId);
+                _logger.LogWarning(ex, "No se pudo enviar el email de confirmación al cliente para el turno {TurnoId}.", turnoId);
+            }
+        }
+
+        // Email al profesional/staff (se envía aquí porque el turno venía de PendientePago)
+        var profesionalEmail = turno.Profesional?.Email;
+        if (!string.IsNullOrWhiteSpace(profesionalEmail))
+        {
+            try
+            {
+                await _emailService.EnviarNuevoTurnoStaffAsync(
+                    profesionalEmail,
+                    profesionalNombre,
+                    sucursalNombre,
+                    servicioNombre,
+                    clienteNombre,
+                    turno.FechaHoraInicio,
+                    turno.FechaHoraFin);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo enviar el email de nuevo turno al staff para el turno {TurnoId}.", turnoId);
             }
         }
     }
