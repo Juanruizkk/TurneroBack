@@ -1,4 +1,4 @@
-# SignalR — Notificaciones en Tiempo Real
+# SignalR — Notificaciones en Tiempo Real + Persistencia en DB
 
 ## Índice
 
@@ -10,18 +10,29 @@
 6. [Archivos involucrados](#6-archivos-involucrados)
 7. [Frontend — hook useSignalR](#7-frontend--hook-usesignalr)
 8. [Frontend — integración en AdminLayout](#8-frontend--integración-en-adminlayout)
-9. [Cómo testear manualmente](#9-cómo-testear-manualmente)
-10. [Decisiones de diseño](#10-decisiones-de-diseño)
+9. [Persistencia en DB — notificaciones históricas](#9-persistencia-en-db--notificaciones-históricas)
+10. [Cómo testear manualmente](#10-cómo-testear-manualmente)
+11. [Decisiones de diseño](#11-decisiones-de-diseño)
 
 ---
 
 ## 1. Resumen
 
-Cuando se crea un nuevo turno o se cancela uno existente, el sistema envía una notificación push en tiempo real a todos los usuarios conectados que deben saberlo:
+El sistema de notificaciones combina dos mecanismos:
+
+| Mecanismo | Cuándo funciona | Persistencia |
+|---|---|---|
+| **SignalR (WebSocket)** | Panel admin abierto en tiempo real | No — se pierde al cerrar la pestaña |
+| **DB (`notificaciones`)** | Siempre — el backend persiste en cada evento | Sí — visible al reabrir el panel |
+
+Cuando se crea un nuevo turno o se cancela uno existente, el sistema:
+
+1. Envía una notificación push **en tiempo real** vía SignalR a todos los usuarios conectados.
+2. **Persiste la notificación** en la tabla `notificaciones` para que sea visible si el usuario no estaba conectado.
 
 - El **profesional asignado** recibe sus propios turnos.
 - Los **administradores y cajeros** de la sucursal reciben todos los turnos de su sucursal.
-- El mecanismo es **no-crítico**: si SignalR falla, la operación principal (crear/cancelar turno) no se interrumpe.
+- Ambos mecanismos son **no-críticos**: si fallan, la operación principal (crear/cancelar turno) no se interrumpe.
 
 ---
 
@@ -219,7 +230,7 @@ interface Notificacion {
 
 ---
 
-## 9. Cómo testear manualmente
+## 10. Cómo testear manualmente
 
 ### Prerrequisitos
 
@@ -326,7 +337,7 @@ curl -i http://localhost:5000/hubs/turnero/negotiate \
 
 ---
 
-## 10. Decisiones de diseño
+## 11. Decisiones de diseño
 
 | Decisión | Elección | Motivo |
 |---|---|---|
@@ -336,5 +347,70 @@ curl -i http://localhost:5000/hubs/turnero/negotiate \
 | SignalR es no-crítico | Sí — `try { } catch { }` | Un fallo de SignalR no puede cancelar la creación de un turno |
 | Token JWT via query string | `?access_token=...` | Los WebSockets no soportan headers custom durante el handshake HTTP |
 | Profesional en grupo propio, no en admins | Sí | Un profesional solo debe ver sus turnos, no los del resto del equipo |
-| Notificaciones efímeras (solo en memoria) | Sí | Suficiente para alertas operativas en tiempo real; auditoría formal está en la BD |
-| Max 50 notificaciones en memoria | Sí | Evita memory leaks en sesiones largas |
+| Notificaciones efímeras en React | Solo SignalR | La persistencia ahora está en la BD `notificaciones`; SignalR es solo para tiempo real |
+| Max 50 notificaciones en memoria | Sí | Evita memory leaks en sesiones largas; la BD limita la misma cantidad al cargar |
+
+---
+
+## 9. Persistencia en DB — notificaciones históricas
+
+### Tabla `notificaciones`
+
+```
+notificaciones
+├── Id             UUID PK
+├── SucursalId     UUID     (multi-tenant — sin FK a sucursales para simplificar cascadas)
+├── TurnoId        UUID     (referencia lógica al turno, sin FK)
+├── Tipo           INT      (0 = NuevoTurno, 1 = Cancelacion)
+├── Mensaje        VARCHAR(500)
+├── Leida          BOOL     DEFAULT false
+└── FechaCreacion  TIMESTAMP WITHOUT TIME ZONE
+```
+
+Índice compuesto en `(SucursalId, Leida)` — optimiza la query más frecuente.
+
+### API REST
+
+Todos los endpoints requieren JWT con claim `sucursalId`.
+
+| Endpoint | Acción |
+|---|---|
+| `GET /api/notificaciones` | Devuelve hasta 50 no leídas, más recientes primero |
+| `PATCH /api/notificaciones/leer` | Marca todas como leídas (se llama al abrir la campanita) |
+| `DELETE /api/notificaciones` | Elimina todas ("Limpiar todo") |
+
+### Cuándo se persiste
+
+| Evento | Se persiste? | Tipo |
+|---|---|---|
+| `CreateAsync` → turno `Confirmado` | ✅ | `NuevoTurno` |
+| `CreateAsync` → turno `PendientePago` | ❌ | (se notifica al confirmar el pago vía MP) |
+| `CreateAsync` → turno `Pendiente` (modo Manual) | ❌ | (se notifica al confirmar manualmente) |
+| `UpdateEstadoAsync` → `CanceladoStaff / CanceladoCliente` | ✅ | `Cancelacion` |
+| `CancelarPorTokenAsync` (link del cliente) | ✅ | `Cancelacion` |
+| Cualquier otro cambio de estado | ❌ | — |
+
+### Flujo: "pestaña cerrada"
+
+```
+1. Cliente reserva turno
+2. TurnoService: INSERT en `notificaciones` (leida=false)
+3. TurnoService: SignalR NuevoTurno → nadie conectado → se descarta
+4. [Después] Profesional abre el panel
+5. AdminLayout.useEffect → GET /api/notificaciones → devuelve la notificación
+6. Campanita muestra badge con número de no leídas
+7. Profesional abre campanita → PATCH /api/notificaciones/leer
+```
+
+### Tests (`NotificacionPersistenciaTests.cs`)
+
+| Test | Verifica |
+|---|---|
+| `Create_EstadoConfirmado_PersistNotificacionNuevoTurno` | INSERT al crear en Confirmado |
+| `Create_EstadoPendientePago_NoPersistNotificacion` | No INSERT si espera pago |
+| `Create_ConObservaciones_MensajeIncluyeTextoDeCliente` | Mensaje avisa que hay dirección/indicaciones |
+| `Create_RepositorioFalla_NoLanzaException` | DB caída no cancela la creación |
+| `Update_Cancelacion_PersistNotificacionCancelacion` | INSERT en CanceladoStaff y CanceladoCliente |
+| `Update_EstadoNoCancelacion_NoPersistNotificacion` | No INSERT en Completado, NoShow, etc. |
+| `CancelarPorToken_PersistNotificacionCancelacion` | INSERT cuando el cliente cancela por link |
+| `CancelarPorToken_RepositorioFalla_NoLanzaException` | DB caída no cancela el turno del cliente |

@@ -24,6 +24,9 @@ public class ActualizarAjustesDto
     [Required(AllowEmptyStrings = true), MaxLength(500)]
     public string Direccion { get; set; } = string.Empty;
 
+    [MaxLength(500)]
+    public string? GoogleMapsUrl { get; set; }
+
     [Required(AllowEmptyStrings = true), MaxLength(50)]
     public string Telefono { get; set; } = string.Empty;
 

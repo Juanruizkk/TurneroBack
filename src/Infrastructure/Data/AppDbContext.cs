@@ -40,6 +40,9 @@ public class AppDbContext : DbContext
     // ─── Mercado Pago OAuth ───────────────────────────────────────────────────
     public DbSet<SucursalMercadoPago> SucursalMercadoPagos => Set<SucursalMercadoPago>();
 
+    // ─── Notificaciones ──────────────────────────────────────────────────────
+    public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -65,7 +65,6 @@ public class TurnoAutoNoShowService : BackgroundService
             foreach (var turno in turnos)
                 turno.Estado = EstadoTurno.NoShow;
 
-            repo.UpdateRange(turnos);
             await repo.SaveChangesAsync();
 
             _logger.LogInformation(

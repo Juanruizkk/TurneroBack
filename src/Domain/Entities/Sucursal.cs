@@ -15,6 +15,7 @@ public class Sucursal
     public List<string> Rubros { get; set; } = new();
     public string Moneda { get; set; } = "ARS";
     public string Direccion { get; set; } = string.Empty;
+    public string? GoogleMapsUrl { get; set; }
     public string Telefono { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public bool Activa { get; set; } = true;

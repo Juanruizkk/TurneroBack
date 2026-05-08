@@ -16,6 +16,8 @@ using TurneroApp.Infrastructure.Services.MercadoPago;
 using Resend;
 
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── JWT Authentication ───────────────────────────────────────────────────────
@@ -89,6 +91,7 @@ builder.Services.AddScoped<IHorarioLaboralRepository, HorarioLaboralRepository>(
 builder.Services.AddScoped<IUsuarioServicioRepository, UsuarioServicioRepository>();
 builder.Services.AddScoped<ISuscripcionRepository, SuscripcionRepository>();
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
+builder.Services.AddScoped<INotificacionRepository, NotificacionRepository>();
 
 // ─── Application Services ────────────────────────────────────────────────────
 builder.Services.AddScoped<SucursalService>();
@@ -108,7 +111,8 @@ builder.Services.AddScoped<TurnoService>(sp =>
     var usuarioServicioRepo = sp.GetRequiredService<IUsuarioServicioRepository>();
     var suscripcionRepo     = sp.GetRequiredService<ISuscripcionRepository>();
     var guard               = sp.GetRequiredService<SuscripcionGuard>();
-    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl, notificaciones, horarioRepo, usuarioServicioRepo, suscripcionRepo, guard);
+    var notificacionRepo = sp.GetRequiredService<INotificacionRepository>();
+    return new TurnoService(turnoRepo, servicioRepo, clienteRepo, sucursalRepo, emailService, comentarioRepo, frontendUrl, notificaciones, horarioRepo, usuarioServicioRepo, suscripcionRepo, guard, notificacionRepo);
 });
 builder.Services.AddScoped<CajaService>();
 builder.Services.AddScoped<SuperAdminService>(sp => new SuperAdminService(
@@ -392,6 +396,8 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+    if (app.Environment.IsDevelopment())
+        await DemoDataSeeder.SeedAsync(db);
 }
 
 app.Run();

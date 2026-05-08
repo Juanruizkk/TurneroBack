@@ -173,8 +173,10 @@ public class ConsoleEmailService : IEmailService
         string servicioNombre,
         string clienteNombre,
         DateTime fechaHoraInicio,
-        DateTime fechaHoraFin)
+        DateTime fechaHoraFin,
+        string? observaciones = null)
     {
+        var obsLinea = string.IsNullOrWhiteSpace(observaciones) ? "" : $"\n            ║  Mensaje:  {observaciones}";
         _logger.LogWarning(
             """
             ╔══════════════════════════════════════════════════════╗
@@ -186,13 +188,14 @@ public class ConsoleEmailService : IEmailService
             ║  Cliente:  {Cliente}
             ║  Servicio: {Servicio}
             ║  Inicio:   {Inicio}
-            ║  Fin:      {Fin}
+            ║  Fin:      {Fin}{Obs}
             ╚══════════════════════════════════════════════════════╝
             """,
             destinatarioEmail, destinatarioNombre, nombreSucursal,
             clienteNombre, servicioNombre,
             fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"),
-            fechaHoraFin.ToString("HH:mm"));
+            fechaHoraFin.ToString("HH:mm"),
+            obsLinea);
 
         return Task.CompletedTask;
     }

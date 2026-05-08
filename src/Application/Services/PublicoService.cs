@@ -73,9 +73,10 @@ public class PublicoService
             FotoUrl       = sucursal.FotoUrl,
             BackgroundUrl = sucursal.BackgroundUrl,
             Rubros        = sucursal.Rubros,
-            Moneda    = sucursal.Moneda,
-            Direccion = sucursal.Direccion,
-            Telefono  = sucursal.Telefono,
+            Moneda        = sucursal.Moneda,
+            Direccion     = sucursal.Direccion,
+            GoogleMapsUrl = sucursal.GoogleMapsUrl,
+            Telefono      = sucursal.Telefono,
             Email     = sucursal.Email,
             DiasMaximosReservaFutura = config?.DiasMaximosReservaFutura ?? 30,
             HorariosAtencion = horarios,
@@ -182,8 +183,8 @@ public class PublicoService
                             t.FechaHoraInicio < slotFin &&
                             t.FechaHoraFin    > slotInicio)) return false;
 
-                    // Filtro por horario laboral (solo si el profesional tiene horarios configurados)
-                    if (horariosPorProf.TryGetValue(profId, out var horarios) && horarios.Count > 0)
+                    // Filtro por horario laboral (solo si el profesional tiene horarios activos configurados)
+                    if (horariosPorProf.TryGetValue(profId, out var horarios) && horarios.Any(h => h.Activo))
                     {
                         var slotHoraInicio = slotInicio.TimeOfDay;
                         var slotHoraFin    = slotFin.TimeOfDay;
@@ -221,6 +222,26 @@ public class PublicoService
         }
 
         return resultado;
+    }
+
+    // ─── Overloads por sucursalId (para bookings con VITE_SUCURSAL_ID) ──────────
+
+    /// <summary>Perfil público buscando por ID en lugar de slug.</summary>
+    public async Task<PerfilPublicoDto?> ObtenerPerfilPorIdAsync(Guid sucursalId)
+    {
+        var sucursal = await _sucursalRepo.GetByIdConConfiguracionAsync(sucursalId);
+        if (sucursal is null) return null;
+        return await ObtenerPerfilAsync(sucursal.Slug!);
+    }
+
+    /// <summary>Slots disponibles buscando por sucursalId en lugar de slug.</summary>
+    public async Task<List<SlotDisponibleDto>> ObtenerSlotsAsync(
+        Guid sucursalId, DateOnly fecha, Guid servicioId)
+    {
+        // Solo necesitamos el slug para reusar el método existente
+        var sucursal = await _sucursalRepo.GetByIdAsync(sucursalId);
+        if (sucursal is null) return [];
+        return await ObtenerSlotsAsync(sucursal.Slug!, fecha, servicioId);
     }
 
     // ─── Reserva pública (sin autenticación) ──────────────────────────────────
