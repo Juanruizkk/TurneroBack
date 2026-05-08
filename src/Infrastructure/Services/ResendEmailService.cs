@@ -8,6 +8,7 @@ public class ResendEmailService : IEmailService
 {
     private readonly IResend _resend;
     private readonly string  _fromAddress;
+    private readonly string  _apiKey;
 
     public ResendEmailService(IResend resend, IConfiguration config)
     {
@@ -15,6 +16,7 @@ public class ResendEmailService : IEmailService
         var fromEmail = config["Resend:FromEmail"] ?? "noreply@turneroapp.com";
         var fromName  = config["Resend:FromName"]  ?? "MetaTurnos";
         _fromAddress  = $"{fromName} <{fromEmail}>";
+        _apiKey       = config["Resend:ApiKey"] ?? string.Empty;
     }
 
     public Task EnviarInvitacionAsync(
@@ -50,7 +52,7 @@ public class ResendEmailService : IEmailService
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
-    public Task EnviarBienvenidaAsync(
+    public async Task EnviarBienvenidaAsync(
         string destinatarioEmail,
         string destinatarioNombre,
         string nombreNegocio,
@@ -58,7 +60,8 @@ public class ResendEmailService : IEmailService
     {
         var asunto = $"¡Bienvenido a MetaTurnos, {destinatarioNombre}!";
         var cuerpo = PlantillaBienvenida(destinatarioNombre, nombreNegocio, urlPanel);
-        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
+        var pdf    = ManualPdfService.GenerarGuiaInicio(destinatarioNombre, nombreNegocio);
+        await EnviarConAdjuntoAsync(destinatarioEmail, asunto, cuerpo, pdf, "guia-inicio-metaturnos.pdf");
     }
 
     public Task EnviarConfirmacionTurnoAsync(
@@ -156,6 +159,39 @@ public class ResendEmailService : IEmailService
     }
 
     // ─── Core ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Envía un email con un adjunto en PDF usando la API REST de Resend directamente,
+    /// ya que no todos los SDK versions exponen la propiedad Attachments.
+    /// </summary>
+    private async Task EnviarConAdjuntoAsync(
+        string destinatarioEmail,
+        string asunto,
+        string cuerpoHtml,
+        byte[] adjunto,
+        string nombreArchivo)
+    {
+        var payload = new
+        {
+            from        = _fromAddress,
+            to          = new[] { destinatarioEmail },
+            subject     = asunto,
+            html        = cuerpoHtml,
+            attachments = new[]
+            {
+                new { filename = nombreArchivo, content = Convert.ToBase64String(adjunto) }
+            }
+        };
+
+        var json    = System.Text.Json.JsonSerializer.Serialize(payload);
+        using var body   = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        using var http   = new HttpClient();
+        http.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
+
+        var response = await http.PostAsync("https://api.resend.com/emails", body);
+        response.EnsureSuccessStatusCode();
+    }
 
     private async Task EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml)
     {

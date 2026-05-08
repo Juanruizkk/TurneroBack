@@ -65,7 +65,7 @@ public class RecuperacionContrasenaService
             ?? throw new InvalidOperationException("El enlace de recuperación no es válido.");
 
         if (usuario.TokenRecuperacionExpiracion is null ||
-            usuario.TokenRecuperacionExpiracion.Value < DateTime.UtcNow)
+            usuario.TokenRecuperacionExpiracion.Value.ToUniversalTime() < DateTime.UtcNow)
             throw new InvalidOperationException(
                 "El enlace de recuperación venció. Solicitá uno nuevo desde la pantalla de inicio de sesión.");
 
