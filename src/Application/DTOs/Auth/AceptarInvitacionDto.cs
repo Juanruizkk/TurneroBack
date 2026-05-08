@@ -10,7 +10,7 @@ public class AceptarInvitacionDto
     /// <summary>
     /// Contraseña para usuarios nuevos. Null para usuarios que ya tienen cuenta.
     /// </summary>
-    [MinLength(6)]
+    [MinLength(8)]
     [MaxLength(200)]
     public string? NuevaPassword { get; set; }
 }
