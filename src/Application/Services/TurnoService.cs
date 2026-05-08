@@ -20,6 +20,7 @@ public class TurnoService
     private readonly IUsuarioServicioRepository?  _usuarioServicioRepo;
     private readonly ISuscripcionRepository?      _suscripcionRepo;
     private readonly SuscripcionGuard?            _suscripcionGuard;
+    private readonly INotificacionRepository?     _notificacionRepo;
 
     public TurnoService(
         ITurnoRepository turnoRepository,
@@ -33,7 +34,8 @@ public class TurnoService
         IHorarioLaboralRepository? horarioRepo = null,
         IUsuarioServicioRepository? usuarioServicioRepo = null,
         ISuscripcionRepository? suscripcionRepo = null,
-        SuscripcionGuard? suscripcionGuard = null)
+        SuscripcionGuard? suscripcionGuard = null,
+        INotificacionRepository? notificacionRepo = null)
     {
         _turnoRepository      = turnoRepository;
         _servicioRepository   = servicioRepository;
@@ -47,6 +49,7 @@ public class TurnoService
         _usuarioServicioRepo  = usuarioServicioRepo;
         _suscripcionRepo      = suscripcionRepo;
         _suscripcionGuard     = suscripcionGuard;
+        _notificacionRepo     = notificacionRepo;
     }
 
     public async Task<IEnumerable<TurnoResponseDto>> GetAllAsync()
@@ -82,20 +85,7 @@ public class TurnoService
         var turno = await _turnoRepository.GetByTokenAsync(token);
         if (turno is null) return null;
 
-        return new TurnoPublicoResponseDto
-        {
-            ClienteNombre     = turno.Cliente is not null
-                ? $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim()
-                : string.Empty,
-            ServicioNombre    = turno.Servicio?.Nombre    ?? string.Empty,
-            ProfesionalNombre = turno.Profesional is not null
-                ? $"{turno.Profesional.Nombre} {turno.Profesional.Apellido}".Trim()
-                : string.Empty,
-            FechaHoraInicio   = turno.FechaHoraInicio,
-            FechaHoraFin      = turno.FechaHoraFin,
-            Estado            = turno.Estado,
-            Observaciones     = turno.Observaciones,
-        };
+        return MapToPublicoResponse(turno);
     }
 
     /// <summary>
@@ -154,27 +144,41 @@ public class TurnoService
             catch { /* email no-crítico */ }
         }
 
+        var turnoResponse = MapToResponse(turno);
+
         // Notificación en tiempo real (no-crítica)
         if (_notificaciones is not null)
         {
-            try { await _notificaciones.NotificarCancelacionAsync(MapToResponse(turno)); }
+            try { await _notificaciones.NotificarCancelacionAsync(turnoResponse); }
             catch { }
         }
 
-        return new TurnoPublicoResponseDto
+        // Persistir la notificación de cancelación por token
+        if (_notificacionRepo is not null)
         {
-            ClienteNombre     = turno.Cliente is not null
-                ? $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim()
-                : string.Empty,
-            ServicioNombre    = turno.Servicio?.Nombre    ?? string.Empty,
-            ProfesionalNombre = turno.Profesional is not null
-                ? $"{turno.Profesional.Nombre} {turno.Profesional.Apellido}".Trim()
-                : string.Empty,
-            FechaHoraInicio   = turno.FechaHoraInicio,
-            FechaHoraFin      = turno.FechaHoraFin,
-            Estado            = turno.Estado,
-            Observaciones     = turno.Observaciones,
-        };
+            try
+            {
+                var clienteNombre  = turno.Cliente is not null
+                    ? $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim()
+                    : string.Empty;
+                var servicioNombre = turno.Servicio?.Nombre ?? string.Empty;
+
+                await _notificacionRepo.AddAsync(new Notificacion
+                {
+                    Id            = Guid.NewGuid(),
+                    SucursalId    = turno.SucursalId,
+                    TurnoId       = turno.Id,
+                    Tipo          = Domain.Enums.TipoNotificacion.Cancelacion,
+                    Mensaje       = $"Turno cancelado: {clienteNombre} — {servicioNombre}",
+                    Leida         = false,
+                    FechaCreacion = DateTime.Now,
+                });
+                await _notificacionRepo.SaveChangesAsync();
+            }
+            catch { /* persistencia es no-crítica */ }
+        }
+
+        return MapToPublicoResponse(turno);
     }
 
     public async Task<TurnoResponseDto> CreateAsync(CreateTurnoDto dto, OrigenTurno origen = OrigenTurno.Web)
@@ -345,7 +349,8 @@ public class TurnoService
                     servicio.Nombre,
                     $"{cliente.Nombre} {cliente.Apellido}".Trim(),
                     turno.FechaHoraInicio,
-                    turno.FechaHoraFin);
+                    turno.FechaHoraFin,
+                    turno.Observaciones);
             }
             catch
             {
@@ -357,10 +362,37 @@ public class TurnoService
 
         // Notificación en tiempo real solo si el turno quedó confirmado de inmediato
         // (si quedó en PendientePago, la notificación se dispara cuando se confirme el pago)
-        if (_notificaciones is not null && estadoInicial == EstadoTurno.Confirmado)
+        if (estadoInicial == EstadoTurno.Confirmado)
         {
-            try { await _notificaciones.NotificarNuevoTurnoAsync(responseDto); }
-            catch { /* SignalR es no-crítico */ }
+            if (_notificaciones is not null)
+            {
+                try { await _notificaciones.NotificarNuevoTurnoAsync(responseDto); }
+                catch { /* SignalR es no-crítico */ }
+            }
+
+            // Persistir la notificación para que sea visible al reabrir el panel
+            if (_notificacionRepo is not null)
+            {
+                try
+                {
+                    var mensaje = $"Nuevo turno: {responseDto.ClienteNombre} — {responseDto.ServicioNombre}";
+                    if (!string.IsNullOrWhiteSpace(responseDto.Observaciones))
+                        mensaje += " · Tiene un mensaje del cliente";
+
+                    await _notificacionRepo.AddAsync(new Notificacion
+                    {
+                        Id            = Guid.NewGuid(),
+                        SucursalId    = dto.SucursalId,
+                        TurnoId       = turno.Id,
+                        Tipo          = Domain.Enums.TipoNotificacion.NuevoTurno,
+                        Mensaje       = mensaje,
+                        Leida         = false,
+                        FechaCreacion = DateTime.Now,
+                    });
+                    await _notificacionRepo.SaveChangesAsync();
+                }
+                catch { /* persistencia es no-crítica */ }
+            }
         }
 
         return responseDto;
@@ -473,11 +505,38 @@ public class TurnoService
         var turnoDto = MapToResponse(turno);
 
         // Notificación en tiempo real para cancelaciones
-        if (_notificaciones is not null
-            && (estadoNuevo == EstadoTurno.CanceladoStaff || estadoNuevo == EstadoTurno.CanceladoCliente))
+        if (estadoNuevo == EstadoTurno.CanceladoStaff || estadoNuevo == EstadoTurno.CanceladoCliente)
         {
-            try { await _notificaciones.NotificarCancelacionAsync(turnoDto); }
-            catch { /* SignalR es no-crítico */ }
+            if (_notificaciones is not null)
+            {
+                try { await _notificaciones.NotificarCancelacionAsync(turnoDto); }
+                catch { /* SignalR es no-crítico */ }
+            }
+
+            // Persistir la notificación de cancelación
+            if (_notificacionRepo is not null)
+            {
+                try
+                {
+                    var clienteNombre = turno.Cliente is not null
+                        ? $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim()
+                        : string.Empty;
+                    var servicioNombre = turno.Servicio?.Nombre ?? string.Empty;
+
+                    await _notificacionRepo.AddAsync(new Notificacion
+                    {
+                        Id            = Guid.NewGuid(),
+                        SucursalId    = turno.SucursalId,
+                        TurnoId       = turno.Id,
+                        Tipo          = Domain.Enums.TipoNotificacion.Cancelacion,
+                        Mensaje       = $"Turno cancelado: {clienteNombre} — {servicioNombre}",
+                        Leida         = false,
+                        FechaCreacion = DateTime.Now,
+                    });
+                    await _notificacionRepo.SaveChangesAsync();
+                }
+                catch { /* persistencia es no-crítica */ }
+            }
         }
 
         return turnoDto;
@@ -549,6 +608,21 @@ public class TurnoService
                          : string.Empty,
         Texto          = c.Texto,
         Fecha          = c.Fecha,
+    };
+
+    private static TurnoPublicoResponseDto MapToPublicoResponse(Turno t) => new()
+    {
+        Id                = t.Id,
+        ClienteNombre     = t.Cliente is not null ? $"{t.Cliente.Nombre} {t.Cliente.Apellido}".Trim() : string.Empty,
+        ServicioNombre    = t.Servicio?.Nombre ?? string.Empty,
+        ProfesionalNombre = t.Profesional is not null ? $"{t.Profesional.Nombre} {t.Profesional.Apellido}".Trim() : string.Empty,
+        FechaHoraInicio   = t.FechaHoraInicio,
+        FechaHoraFin      = t.FechaHoraFin,
+        Estado            = t.Estado,
+        Observaciones     = t.Observaciones,
+        PrecioServicio    = t.PrecioServicio,
+        TotalCobrado      = t.TotalCobrado,
+        MontoSena         = t.MontoSena,
     };
 
     private static TurnoResponseDto MapToResponse(Turno t) => new()

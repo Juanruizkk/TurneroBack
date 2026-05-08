@@ -107,10 +107,11 @@ public class ResendEmailService : IEmailService
         string servicioNombre,
         string clienteNombre,
         DateTime fechaHoraInicio,
-        DateTime fechaHoraFin)
+        DateTime fechaHoraFin,
+        string? observaciones = null)
     {
         var asunto = $"Nuevo turno reservado — {clienteNombre} el {fechaHoraInicio:dd/MM HH:mm}";
-        var cuerpo = PlantillaNuevoTurnoStaff(destinatarioNombre, nombreSucursal, servicioNombre, clienteNombre, fechaHoraInicio, fechaHoraFin);
+        var cuerpo = PlantillaNuevoTurnoStaff(destinatarioNombre, nombreSucursal, servicioNombre, clienteNombre, fechaHoraInicio, fechaHoraFin, observaciones);
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
@@ -565,10 +566,19 @@ public class ResendEmailService : IEmailService
         string servicio,
         string clienteNombre,
         DateTime inicio,
-        DateTime fin)
+        DateTime fin,
+        string? observaciones = null)
     {
         var fechaStr = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-AR"));
         var horaStr  = $"{inicio:HH:mm} – {fin:HH:mm}";
+        var obsHtml  = string.IsNullOrWhiteSpace(observaciones) ? "" : $"""
+                                <tr>
+                                  <td style="padding:8px 0;border-top:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Mensaje del cliente</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{System.Net.WebUtility.HtmlEncode(observaciones)}</strong>
+                                  </td>
+                                </tr>
+            """;
 
         return $"""
             <!DOCTYPE html>
@@ -627,6 +637,7 @@ public class ResendEmailService : IEmailService
                                     <strong style="font-size:15px;color:#18181b;">{horaStr}</strong>
                                   </td>
                                 </tr>
+                                {obsHtml}
                               </table>
                             </td>
                           </tr>

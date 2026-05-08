@@ -85,6 +85,45 @@ public class PublicoController : ControllerBase
         }
     }
 
+    /// <summary>Perfil público de una sucursal buscando por ID (para bookings con VITE_SUCURSAL_ID).</summary>
+    [HttpGet("perfil")]
+    public async Task<IActionResult> PerfilById([FromQuery] Guid sucursalId)
+    {
+        var perfil = await _service.ObtenerPerfilPorIdAsync(sucursalId);
+        if (perfil is null) return NotFound(new { message = "Sucursal no encontrada." });
+        return Ok(perfil);
+    }
+
+    /// <summary>Servicios activos de una sucursal buscando por ID (para bookings con VITE_SUCURSAL_ID).</summary>
+    [HttpGet("servicios")]
+    public async Task<IActionResult> ServiciosById([FromQuery] Guid sucursalId)
+    {
+        var servicios = await _servicioService.GetBySucursalAsync(sucursalId, incluirInactivos: false);
+        return Ok(servicios);
+    }
+
+    /// <summary>Slots disponibles buscando por sucursalId (para bookings con VITE_SUCURSAL_ID).</summary>
+    [HttpGet("slots")]
+    public async Task<IActionResult> SlotsBySucursalId(
+        [FromQuery] Guid sucursalId,
+        [FromQuery] string fecha,
+        [FromQuery] Guid servicioId)
+    {
+        if (!DateOnly.TryParse(fecha, out var dateOnly))
+            return BadRequest(new { message = "Formato de fecha inválido. Use yyyy-MM-dd." });
+
+        try
+        {
+            var slots = await _service.ObtenerSlotsAsync(sucursalId, dateOnly, servicioId);
+            return Ok(slots);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener slots para sucursalId={SucursalId}", sucursalId);
+            return StatusCode(500, new { message = "Error interno al obtener disponibilidad." });
+        }
+    }
+
     /// <summary>
     /// Crea un turno desde el booking público usando sucursalId directo (legacy / VITE_SUCURSAL_ID).
     /// </summary>

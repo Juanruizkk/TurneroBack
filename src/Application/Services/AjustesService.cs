@@ -58,9 +58,10 @@ public class AjustesService
             FotoUrl       = sucursal.FotoUrl,
             BackgroundUrl = sucursal.BackgroundUrl,
             Rubros        = sucursal.Rubros,
-            Moneda    = sucursal.Moneda,
-            Direccion = sucursal.Direccion,
-            Telefono  = sucursal.Telefono,
+            Moneda       = sucursal.Moneda,
+            Direccion    = sucursal.Direccion,
+            GoogleMapsUrl = sucursal.GoogleMapsUrl,
+            Telefono     = sucursal.Telefono,
             Email     = sucursal.Email,
 
             HorariosAtencion = horarios,
@@ -88,9 +89,10 @@ public class AjustesService
         sucursal.Slogan    = string.IsNullOrWhiteSpace(dto.Slogan) ? null : dto.Slogan.Trim();
         sucursal.FotoUrl   = string.IsNullOrWhiteSpace(dto.FotoUrl) ? null : dto.FotoUrl.Trim();
         sucursal.Rubros    = dto.Rubros;
-        sucursal.Moneda    = dto.Moneda;
-        sucursal.Direccion = dto.Direccion.Trim();
-        sucursal.Telefono  = dto.Telefono.Trim();
+        sucursal.Moneda       = dto.Moneda;
+        sucursal.Direccion    = dto.Direccion.Trim();
+        sucursal.GoogleMapsUrl = string.IsNullOrWhiteSpace(dto.GoogleMapsUrl) ? null : dto.GoogleMapsUrl.Trim();
+        sucursal.Telefono     = dto.Telefono.Trim();
         sucursal.Email     = dto.Email.Trim().ToLowerInvariant();
 
         _sucursalRepo.Update(sucursal);

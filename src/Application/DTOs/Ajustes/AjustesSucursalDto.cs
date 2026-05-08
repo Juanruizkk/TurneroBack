@@ -14,6 +14,7 @@ public class AjustesSucursalDto
 
     // ─── Contacto y ubicación ─────────────────────────────────────────────────
     public string Direccion { get; set; } = string.Empty;
+    public string? GoogleMapsUrl { get; set; }
     public string Telefono { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
 

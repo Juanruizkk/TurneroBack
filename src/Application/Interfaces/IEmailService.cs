@@ -58,7 +58,8 @@ public interface IEmailService
         string servicioNombre,
         string clienteNombre,
         DateTime fechaHoraInicio,
-        DateTime fechaHoraFin);
+        DateTime fechaHoraFin,
+        string? observaciones = null);
 
     /// <summary>Alerta al profesional (o sucursal) que un cliente canceló y el slot quedó libre.</summary>
     Task EnviarAlertaLiberacionAgendaAsync(
