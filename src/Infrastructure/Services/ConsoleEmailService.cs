@@ -267,6 +267,7 @@ public class ConsoleEmailService : IEmailService
             ║  1. Completá el perfil → {Panel}/admin/ajustes
             ║  2. Creá tu primer servicio → {Panel}/admin/servicios
             ║  3. Invitá a tu equipo → {Panel}/admin/equipo
+            ║  [PDF adjunto: guia-inicio-metaturnos.pdf]            ║
             ╚══════════════════════════════════════════════════════╝
             """,
             destinatarioEmail, destinatarioNombre, nombreNegocio, urlPanel);
