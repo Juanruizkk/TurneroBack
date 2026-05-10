@@ -16,7 +16,7 @@ public class ResendEmailService : IEmailService
         var fromEmail = config["Resend:FromEmail"] ?? "noreply@turneroapp.com";
         var fromName  = config["Resend:FromName"]  ?? "MetaTurnos";
         _fromAddress  = $"{fromName} <{fromEmail}>";
-        _apiKey       = config["Resend:ApiKey"] ?? string.Empty;
+        _apiKey       = config["Resend:ApiToken"] ?? config["Resend:ApiKey"] ?? string.Empty;
     }
 
     public Task EnviarInvitacionAsync(
