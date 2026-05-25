@@ -116,6 +116,40 @@ public class ConsoleEmailService : IEmailService
         return Task.CompletedTask;
     }
 
+    public Task EnviarSolicitudTurnoPendienteAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string profesionalNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string cancelUrl)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║     [DEV] EMAIL SOLICITUD TURNO PENDIENTE            ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:        {Email}
+            ║  Cliente:     {Nombre}
+            ║  Sucursal:    {Sucursal}
+            ║  Servicio:    {Servicio}
+            ║  Profesional: {Profesional}
+            ║  Inicio:      {Inicio}
+            ║  Fin:         {Fin}
+            ║  Cancelar:    {CancelUrl}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, nombreSucursal,
+            servicioNombre, profesionalNombre,
+            fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"),
+            fechaHoraFin.ToString("HH:mm"),
+            cancelUrl);
+
+        return Task.CompletedTask;
+    }
+
     public Task EnviarCancelacionStaffAsync(
         string destinatarioEmail,
         string destinatarioNombre,
@@ -162,6 +196,42 @@ public class ConsoleEmailService : IEmailService
             """,
             destinatarioEmail, destinatarioNombre, nombreSucursal,
             servicioNombre, fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"));
+
+        return Task.CompletedTask;
+    }
+
+    public Task EnviarSolicitudTurnoStaffAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string clienteNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string panelUrl,
+        string? observaciones = null)
+    {
+        var obsLinea = string.IsNullOrWhiteSpace(observaciones) ? "" : $"\n            ║  Mensaje:  {observaciones}";
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║   [DEV] SOLICITUD DE TURNO PENDIENTE (staff)         ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Para:     {Email}
+            ║  Nombre:   {Nombre}
+            ║  Sucursal: {Sucursal}
+            ║  Cliente:  {Cliente}
+            ║  Servicio: {Servicio}
+            ║  Inicio:   {Inicio}
+            ║  Fin:      {Fin}
+            ║  Panel:    {Panel}{Obs}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            destinatarioEmail, destinatarioNombre, nombreSucursal,
+            clienteNombre, servicioNombre,
+            fechaHoraInicio.ToString("dd/MM/yyyy HH:mm"),
+            fechaHoraFin.ToString("HH:mm"),
+            panelUrl, obsLinea);
 
         return Task.CompletedTask;
     }
@@ -264,9 +334,11 @@ public class ConsoleEmailService : IEmailService
             ║  Panel:   {Panel}
             ╠══════════════════════════════════════════════════════╣
             ║  Pasos de configuración inicial:                      ║
-            ║  1. Completá el perfil → {Panel}/admin/ajustes
-            ║  2. Creá tu primer servicio → {Panel}/admin/servicios
-            ║  3. Invitá a tu equipo → {Panel}/admin/equipo
+            ║  Asistente: {Panel}/admin/onboarding                  ║
+            ║  - O por secciones:                                   ║
+            ║    1. Ajustes   → {Panel}/admin/ajustes               ║
+            ║    2. Servicios → {Panel}/admin/servicios             ║
+            ║    3. Equipo    → {Panel}/admin/usuarios              ║
             ║  [PDF adjunto: guia-inicio-metaturnos.pdf]            ║
             ╚══════════════════════════════════════════════════════╝
             """,
