@@ -44,8 +44,9 @@ public static class DemoDataSeeder
 
         if (sucursal is not null)
         {
-            // Sucursal ya existe → solo resetear turnos
+            // Sucursal ya existe → resetear turnos y asegurarse de que existan los usuarios demo
             await ResetTurnosAsync(db, sucursal);
+            await EnsureUsuariosDemoAsync(db, sucursal);
             return;
         }
 
@@ -297,6 +298,106 @@ public static class DemoDataSeeder
         // 11. Turnos
         var serviciosList = new List<Servicio> { s0, s1, s2 };
         CrearTurnos(db, sucursal.Id, profesional.Id, caja.Id, sesion.Id, serviciosList, clientes);
+
+        await db.SaveChangesAsync();
+
+        // 12. Usuarios demo adicionales (Administrativo, Profesional, Caja)
+        await EnsureUsuariosDemoAsync(db, sucursal);
+    }
+
+    // ─── Usuarios demo extra (idempotente) ───────────────────────────────────
+    /// <summary>
+    /// Crea los usuarios demo (Administrativo, Profesional, Caja) si no existen aún.
+    /// Se llama tanto en FullSeedAsync como en EnsureUsuariosDemoAsync para idempotencia.
+    /// </summary>
+    private static async Task EnsureUsuariosDemoAsync(AppDbContext db, Sucursal sucursal)
+    {
+        var servicios = await db.Servicios
+            .Where(s => s.SucursalId == sucursal.Id && s.Activo)
+            .ToListAsync();
+
+        var demoUsers = new[]
+        {
+            new { Email = "laura.gomez@zenmassage.com",    Nombre = "Laura",  Apellido = "Gómez",     Rol = RolUsuario.Administrativo, EsOwner = false },
+            new { Email = "martina.lopez@zenmassage.com",  Nombre = "Martina",Apellido = "López",     Rol = RolUsuario.Profesional,    EsOwner = false },
+            new { Email = "diego.fernandez@zenmassage.com",Nombre = "Diego",  Apellido = "Fernández", Rol = RolUsuario.Caja,           EsOwner = false },
+        };
+
+        foreach (var def in demoUsers)
+        {
+            // Verificar si el usuario ya está en la sucursal
+            var yaExiste = await db.Usuarios
+                .AnyAsync(u => u.Email == def.Email);
+
+            if (yaExiste) continue;
+
+            var usuario = new Usuario
+            {
+                Id            = Guid.NewGuid(),
+                Nombre        = def.Nombre,
+                Apellido      = def.Apellido,
+                Email         = def.Email,
+                Telefono      = "000000000",
+                PasswordHash  = BCrypt.Net.BCrypt.HashPassword("Demo123!"),
+                FechaCreacion = DateTime.UtcNow
+            };
+            db.Usuarios.Add(usuario);
+
+            var rol = new UsuarioSucursalRol
+            {
+                Id            = Guid.NewGuid(),
+                UsuarioId     = usuario.Id,
+                SucursalId    = sucursal.Id,
+                Rol           = def.Rol,
+                EsOwner       = def.EsOwner,
+                Estado        = EstadoUsuario.Activo,
+                FechaCreacion = DateTime.UtcNow
+            };
+            db.UsuarioSucursalRoles.Add(rol);
+
+            // Horarios Lun–Vie 09:00–18:00
+            for (int i = 1; i <= 5; i++)
+            {
+                db.HorariosLaborales.Add(new HorarioLaboral
+                {
+                    Id                   = Guid.NewGuid(),
+                    UsuarioSucursalRolId = rol.Id,
+                    DiaSemana            = (DayOfWeek)i,
+                    HoraDesde            = new TimeSpan(9, 0, 0),
+                    HoraHasta            = new TimeSpan(18, 0, 0),
+                    Activo               = true
+                });
+            }
+
+            // Permisos y servicios según rol
+            if (def.Rol == RolUsuario.Profesional)
+            {
+                // Martina: puede agendar y ver teléfonos, pero NO cargar cobranzas
+                foreach (var p in new[] { PermisoSistema.AgendarTurnos, PermisoSistema.EditarTurnos, PermisoSistema.VerTelefonoClientes })
+                {
+                    db.UsuariosPermisos.Add(new UsuarioPermiso
+                    {
+                        Id                   = Guid.NewGuid(),
+                        UsuarioSucursalRolId = rol.Id,
+                        Permiso              = p
+                    });
+                }
+                // Vincular todos los servicios
+                foreach (var srv in servicios)
+                    db.UsuarioServicios.Add(new UsuarioServicio { UsuarioSucursalRolId = rol.Id, ServicioId = srv.Id });
+            }
+            else if (def.Rol == RolUsuario.Caja)
+            {
+                // Diego: CargarCobranzas explícito para que la UI lo refleje correctamente
+                db.UsuariosPermisos.Add(new UsuarioPermiso
+                {
+                    Id                   = Guid.NewGuid(),
+                    UsuarioSucursalRolId = rol.Id,
+                    Permiso              = PermisoSistema.CargarCobranzas
+                });
+            }
+            // Administrativo no necesita permisos explícitos (acceso completo implícito por rol)
+        }
 
         await db.SaveChangesAsync();
     }

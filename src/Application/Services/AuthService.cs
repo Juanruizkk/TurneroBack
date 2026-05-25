@@ -137,7 +137,7 @@ public class AuthService
         var usuario = await _usuarioRepo.GetBySeleccionTokenAsync(dto.SeleccionToken)
             ?? throw new UnauthorizedAccessException("Token de selección inválido.");
 
-        if (usuario.SeleccionTokenExpiracion == null || usuario.SeleccionTokenExpiracion < DateTime.UtcNow)
+        if (usuario.SeleccionTokenExpiracion == null || usuario.SeleccionTokenExpiracion.Value.ToUniversalTime() < DateTime.UtcNow)
             throw new UnauthorizedAccessException("El token de selección expiró. Iniciá sesión nuevamente.");
 
         var usr = await _usrRepo.GetByUsuarioYSucursalAsync(usuario.Id, dto.SucursalId)

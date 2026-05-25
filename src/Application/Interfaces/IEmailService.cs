@@ -34,6 +34,20 @@ public interface IEmailService
         DateTime fechaHoraFin,
         string cancelUrl);
 
+    /// <summary>
+    /// Avisa al cliente que su solicitud de turno fue recibida y está pendiente de confirmación por el negocio.
+    /// Se envía cuando la sucursal opera en modo de confirmación manual.
+    /// </summary>
+    Task EnviarSolicitudTurnoPendienteAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string profesionalNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string cancelUrl);
+
     /// <summary>Avisa al cliente que el staff canceló su turno e invita a reprogramar.</summary>
     Task EnviarCancelacionStaffAsync(
         string destinatarioEmail,
@@ -49,6 +63,21 @@ public interface IEmailService
         string nombreSucursal,
         string servicioNombre,
         DateTime fechaHoraInicio);
+
+    /// <summary>
+    /// Notifica al profesional/admin que llegó una solicitud de turno pendiente de confirmación.
+    /// Se usa en modo de confirmación manual.
+    /// </summary>
+    Task EnviarSolicitudTurnoStaffAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string clienteNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string panelUrl,
+        string? observaciones = null);
 
     /// <summary>Notifica al profesional (o sucursal) que se acaba de reservar un nuevo turno.</summary>
     Task EnviarNuevoTurnoStaffAsync(
