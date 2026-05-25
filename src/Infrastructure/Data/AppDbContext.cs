@@ -43,6 +43,9 @@ public class AppDbContext : DbContext
     // ─── Notificaciones ──────────────────────────────────────────────────────
     public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
 
+    // ─── Días disponibles por servicio ───────────────────────────────────────
+    public DbSet<ServicioDiaDisponible> ServicioDiasDisponibles => Set<ServicioDiaDisponible>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

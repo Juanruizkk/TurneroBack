@@ -114,9 +114,14 @@ public class PublicoService
         if (!horarios.TryGetValue(nombreDia, out var horarioDia) || !horarioDia.Abierto) return [];
         if (horarioDia.Franjas is not { Count: > 0 }) return [];
 
-        // 3. Duración del servicio
-        var servicio = await _servicioRepo.GetByIdAsync(servicioId);
+        // 3. Duración del servicio + validación de día disponible
+        var servicio = await _servicioRepo.GetByIdConDiasAsync(servicioId);
         if (servicio is null) return [];
+
+        if (servicio.DiasDisponibles.Count > 0 &&
+            !servicio.DiasDisponibles.Any(d => d.DiaSemana == fecha.DayOfWeek))
+            return [];
+
         int duracion = servicio.DuracionAgendaMin;
 
         // 4. Usuarios activos que pueden atender turnos (cualquier rol operativo)
