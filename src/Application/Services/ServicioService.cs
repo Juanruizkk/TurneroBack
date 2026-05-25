@@ -32,7 +32,7 @@ public class ServicioService
 
     public async Task<ServicioResponseDto?> GetByIdAsync(Guid id)
     {
-        var servicio = await _servicioRepository.GetByIdAsync(id);
+        var servicio = await _servicioRepository.GetByIdConDiasAsync(id);
         return servicio is null ? null : MapToResponse(servicio);
     }
 
@@ -60,13 +60,20 @@ public class ServicioService
         };
 
         await _servicioRepository.AddAsync(servicio);
+
+        if (dto.DiasDisponibles is { Count: > 0 })
+            await _servicioRepository.ActualizarDiasDisponiblesAsync(servicio.Id, dto.DiasDisponibles);
+
         await _servicioRepository.SaveChangesAsync();
-        return MapToResponse(servicio);
+
+        // Recargar con días para el response
+        var creado = await _servicioRepository.GetByIdConDiasAsync(servicio.Id) ?? servicio;
+        return MapToResponse(creado);
     }
 
     public async Task<ServicioResponseDto?> UpdateAsync(Guid id, UpdateServicioDto dto)
     {
-        var servicio = await _servicioRepository.GetByIdAsync(id);
+        var servicio = await _servicioRepository.GetByIdConDiasAsync(id);
         if (servicio is null) return null;
         ValidarSena(dto.RequiereSena, dto.TipoSena, dto.ValorSena, dto.Precio);
 
@@ -83,9 +90,14 @@ public class ServicioService
         servicio.TipoServicio = dto.TipoServicio;
         // Activo no se modifica aquí — usar DELETE /api/servicios/{id}
 
+        // Siempre reemplazar los días (null / vacío = sin restricción)
+        await _servicioRepository.ActualizarDiasDisponiblesAsync(id, dto.DiasDisponibles ?? []);
+
         _servicioRepository.Update(servicio);
         await _servicioRepository.SaveChangesAsync();
-        return MapToResponse(servicio);
+
+        var actualizado = await _servicioRepository.GetByIdConDiasAsync(id) ?? servicio;
+        return MapToResponse(actualizado);
     }
 
     public async Task<bool> DesactivarAsync(Guid id)
@@ -127,6 +139,7 @@ public class ServicioService
         ValorSena = s.ValorSena,
         ModalidadPrestacion = s.ModalidadPrestacion,
         TipoServicio = s.TipoServicio,
-        Activo = s.Activo
+        Activo = s.Activo,
+        DiasDisponibles = s.DiasDisponibles.Select(d => d.DiaSemana).ToList(),
     };
 }
