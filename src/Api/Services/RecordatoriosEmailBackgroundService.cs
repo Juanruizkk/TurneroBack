@@ -80,7 +80,8 @@ public class RecordatoriosEmailBackgroundService : BackgroundService
                 if (string.IsNullOrWhiteSpace(turno.Cliente?.Email))
                     continue;
 
-                var cancelUrl     = $"{_frontendUrl}/turno/{turno.TokenGestion}";
+                var permiteCancelacion = turno.Sucursal?.ConfiguracionSucursal?.PermiteCancelacionCliente ?? true;
+                var cancelUrl     = permiteCancelacion ? $"{_frontendUrl}/turno/{turno.TokenGestion}" : string.Empty;
                 var sucursalNombre = turno.Sucursal?.Nombre ?? string.Empty;
                 var clienteNombre  = $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim();
                 var profesionalNombre = $"{turno.Profesional?.Nombre} {turno.Profesional?.Apellido}".Trim();

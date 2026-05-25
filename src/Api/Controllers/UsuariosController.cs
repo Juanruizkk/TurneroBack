@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TurneroApp.Application.DTOs.Usuario;
@@ -108,12 +109,17 @@ public class UsuariosController : ControllerBase
     /// Solo accesible por usuarios con rol Administrativo u Owner.
     /// </summary>
     [HttpPut("{id:guid}/rol-estado-permisos")]
-    [Authorize(Roles = "Administrativo")]
     [ProducesResponseType(typeof(UsuarioResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateRolEstadoPermisos(Guid id, [FromBody] UpdateRolEstadoPermisosDto dto)
     {
+        var esAdmin = User.IsInRole("Administrativo");
+        var esOwner = User.FindFirstValue("esOwner") == "true";
+        if (!esAdmin && !esOwner)
+            return Forbid();
+
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 

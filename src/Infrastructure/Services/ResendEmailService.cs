@@ -8,6 +8,7 @@ public class ResendEmailService : IEmailService
 {
     private readonly IResend _resend;
     private readonly string  _fromAddress;
+    private readonly string  _apiKey;
 
     public ResendEmailService(IResend resend, IConfiguration config)
     {
@@ -15,6 +16,7 @@ public class ResendEmailService : IEmailService
         var fromEmail = config["Resend:FromEmail"] ?? "noreply@turneroapp.com";
         var fromName  = config["Resend:FromName"]  ?? "MetaTurnos";
         _fromAddress  = $"{fromName} <{fromEmail}>";
+        _apiKey       = config["Resend:ApiToken"] ?? config["Resend:ApiKey"] ?? string.Empty;
     }
 
     public Task EnviarInvitacionAsync(
@@ -50,7 +52,7 @@ public class ResendEmailService : IEmailService
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
-    public Task EnviarBienvenidaAsync(
+    public async Task EnviarBienvenidaAsync(
         string destinatarioEmail,
         string destinatarioNombre,
         string nombreNegocio,
@@ -58,7 +60,8 @@ public class ResendEmailService : IEmailService
     {
         var asunto = $"¡Bienvenido a MetaTurnos, {destinatarioNombre}!";
         var cuerpo = PlantillaBienvenida(destinatarioNombre, nombreNegocio, urlPanel);
-        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
+        var pdf    = ManualPdfService.GenerarGuiaInicio(destinatarioNombre, nombreNegocio);
+        await EnviarConAdjuntoAsync(destinatarioEmail, asunto, cuerpo, pdf, "guia-inicio-metaturnos.pdf");
     }
 
     public Task EnviarConfirmacionTurnoAsync(
@@ -73,6 +76,21 @@ public class ResendEmailService : IEmailService
     {
         var asunto = $"Turno confirmado en {nombreSucursal} — {fechaHoraInicio:dd/MM/yyyy HH:mm}";
         var cuerpo = PlantillaConfirmacionTurno(destinatarioNombre, nombreSucursal, servicioNombre, profesionalNombre, fechaHoraInicio, fechaHoraFin, cancelUrl);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
+    }
+
+    public Task EnviarSolicitudTurnoPendienteAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string profesionalNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string cancelUrl)
+    {
+        var asunto = $"Solicitud de turno recibida en {nombreSucursal} — {fechaHoraInicio:dd/MM/yyyy HH:mm}";
+        var cuerpo = PlantillaSolicitudPendiente(destinatarioNombre, nombreSucursal, servicioNombre, profesionalNombre, fechaHoraInicio, fechaHoraFin, cancelUrl);
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
@@ -97,6 +115,22 @@ public class ResendEmailService : IEmailService
     {
         var asunto = $"Cancelación confirmada — {nombreSucursal}";
         var cuerpo = PlantillaCancelacionCliente(destinatarioNombre, nombreSucursal, servicioNombre, fechaHoraInicio);
+        return EnviarAsync(destinatarioEmail, asunto, cuerpo);
+    }
+
+    public Task EnviarSolicitudTurnoStaffAsync(
+        string destinatarioEmail,
+        string destinatarioNombre,
+        string nombreSucursal,
+        string servicioNombre,
+        string clienteNombre,
+        DateTime fechaHoraInicio,
+        DateTime fechaHoraFin,
+        string panelUrl,
+        string? observaciones = null)
+    {
+        var asunto = $"Nueva solicitud de turno — {clienteNombre} el {fechaHoraInicio:dd/MM HH:mm}";
+        var cuerpo = PlantillaSolicitudTurnoStaff(destinatarioNombre, nombreSucursal, servicioNombre, clienteNombre, fechaHoraInicio, fechaHoraFin, panelUrl, observaciones);
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
@@ -156,6 +190,39 @@ public class ResendEmailService : IEmailService
     }
 
     // ─── Core ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Envía un email con un adjunto en PDF usando la API REST de Resend directamente,
+    /// ya que no todos los SDK versions exponen la propiedad Attachments.
+    /// </summary>
+    private async Task EnviarConAdjuntoAsync(
+        string destinatarioEmail,
+        string asunto,
+        string cuerpoHtml,
+        byte[] adjunto,
+        string nombreArchivo)
+    {
+        var payload = new
+        {
+            from        = _fromAddress,
+            to          = new[] { destinatarioEmail },
+            subject     = asunto,
+            html        = cuerpoHtml,
+            attachments = new[]
+            {
+                new { filename = nombreArchivo, content = Convert.ToBase64String(adjunto) }
+            }
+        };
+
+        var json    = System.Text.Json.JsonSerializer.Serialize(payload);
+        using var body   = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        using var http   = new HttpClient();
+        http.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
+
+        var response = await http.PostAsync("https://api.resend.com/emails", body);
+        response.EnsureSuccessStatusCode();
+    }
 
     private async Task EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml)
     {
@@ -236,6 +303,120 @@ public class ResendEmailService : IEmailService
                                 <tr>
                                   <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
                                     <span style="font-size:13px;color:#71717a;">Servicio</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{servicio}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Profesional</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{profesional}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Fecha</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{fechaStr}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;">
+                                    <span style="font-size:13px;color:#71717a;">Horario</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{horaStr}</strong>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                        {cancelBlock}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
+                          Este mensaje fue generado automáticamente por MetaTurnos.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string PlantillaSolicitudPendiente(
+        string nombre,
+        string sucursal,
+        string servicio,
+        string profesional,
+        DateTime inicio,
+        DateTime fin,
+        string cancelUrl)
+    {
+        var fechaStr = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-AR"));
+        var horaStr  = $"{inicio:HH:mm} – {fin:HH:mm}";
+
+        var cancelBlock = string.IsNullOrWhiteSpace(cancelUrl) ? string.Empty : $"""
+                        <table cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid #e4e4e7;padding-top:20px;width:100%;">
+                          <tr>
+                            <td>
+                              <p style="margin:0 0 12px;font-size:13px;color:#71717a;">¿Te equivocaste o ya no podés ir?</p>
+                              <a href="{cancelUrl}"
+                                 style="display:inline-block;padding:11px 24px;background:#fff1f2;color:#b91c1c;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;border:1.5px solid #fecaca;">
+                                Cancelar solicitud
+                              </a>
+                              <p style="margin:12px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5;">
+                                Este enlace es personal y de un solo uso. Si no querés cancelar, ignorá este mensaje.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+            """;
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+              <meta charset="UTF-8">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Solicitud de turno recibida</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+                <tr><td align="center">
+                  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                    <tr>
+                      <td style="background:#2F7D6B;padding:24px 40px 20px;text-align:center;">
+                        <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="56" height="56" style="display:block;margin:0 auto 8px;object-fit:contain;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                          {sucursal}
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px;">
+                        <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">Solicitud recibida ✓</h2>
+                        <p style="margin:0 0 16px;font-size:15px;color:#52525b;line-height:1.6;">
+                          Hola <strong>{nombre}</strong>, recibimos tu solicitud de turno.
+                        </p>
+                        <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:14px 18px;margin-bottom:28px;">
+                          <p style="margin:0;font-size:14px;color:#713f12;line-height:1.5;">
+                            ⏳ <strong>Tu turno está pendiente de confirmación.</strong><br>
+                            En breve recibirás un email cuando el equipo de {sucursal} lo confirme.
+                          </p>
+                        </div>
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                               style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:28px;">
+                          <tr>
+                            <td style="padding:24px 28px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Servicio solicitado</span><br>
                                     <strong style="font-size:15px;color:#18181b;">{servicio}</strong>
                                   </td>
                                 </tr>
@@ -524,7 +705,7 @@ public class ResendEmailService : IEmailService
                                   <td>
                                     <strong style="font-size:14px;color:#18181b;">Invitá a tu equipo</strong><br>
                                     <span style="font-size:13px;color:#52525b;">Sumá profesionales y configurá sus horarios de trabajo.</span><br>
-                                    <a href="{urlPanel}/admin/equipo" style="font-size:13px;color:#2F7D6B;font-weight:600;text-decoration:none;">Ir a Equipo →</a>
+                                    <a href="{urlPanel}/admin/usuarios" style="font-size:13px;color:#2F7D6B;font-weight:600;text-decoration:none;">Ir a Equipo →</a>
                                   </td>
                                 </tr>
                               </table>
@@ -533,12 +714,15 @@ public class ResendEmailService : IEmailService
                         </table>
 
                         <!-- CTA -->
+                        <p style="margin:0 0 16px;font-size:14px;color:#52525b;line-height:1.6;">
+                          ¿Querés configurarlo todo de una? Usá el asistente de configuración guiada:
+                        </p>
                         <table cellpadding="0" cellspacing="0">
                           <tr>
                             <td style="border-radius:8px;background:#2F7D6B;">
-                              <a href="{urlPanel}/admin"
+                              <a href="{urlPanel}/admin/onboarding"
                                  style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
-                                Ir al panel de administración
+                                ✦ Iniciar configuración guiada
                               </a>
                             </td>
                           </tr>
@@ -550,6 +734,119 @@ public class ResendEmailService : IEmailService
                         <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
                           MetaTurnos · Si no creaste esta cuenta podés ignorar este email.
                         </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string PlantillaSolicitudTurnoStaff(
+        string nombre,
+        string sucursal,
+        string servicio,
+        string clienteNombre,
+        DateTime inicio,
+        DateTime fin,
+        string panelUrl,
+        string? observaciones = null)
+    {
+        var fechaStr = inicio.ToString("dddd d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-AR"));
+        var horaStr  = $"{inicio:HH:mm} – {fin:HH:mm}";
+        var obsHtml  = string.IsNullOrWhiteSpace(observaciones) ? "" : $"""
+                                <tr>
+                                  <td style="padding:8px 0;border-top:1px solid #f0f0f0;">
+                                    <span style="font-size:13px;color:#71717a;">Mensaje del cliente</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{System.Net.WebUtility.HtmlEncode(observaciones)}</strong>
+                                  </td>
+                                </tr>
+            """;
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+              <meta charset="UTF-8">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Nueva solicitud de turno</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+                <tr><td align="center">
+                  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                    <tr>
+                      <td style="background:#d97706;padding:24px 40px 20px;text-align:center;">
+                        <img src="https://metaturnos.com/logo.png" alt="MetaTurnos" width="56" height="56" style="display:block;margin:0 auto 8px;object-fit:contain;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'DM Sans',sans-serif;">
+                          {sucursal}
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px;">
+                        <h2 style="margin:0 0 8px;font-size:22px;color:#18181b;">⏳ Nueva solicitud de turno</h2>
+                        <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">
+                          Hola <strong>{nombre}</strong>, <strong>{clienteNombre}</strong> solicitó un turno que está esperando tu confirmación.
+                        </p>
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                               style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;margin-bottom:28px;">
+                          <tr>
+                            <td style="padding:24px 28px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #fef3c7;">
+                                    <span style="font-size:13px;color:#92400e;">Cliente</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{clienteNombre}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #fef3c7;">
+                                    <span style="font-size:13px;color:#92400e;">Servicio</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{servicio}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;border-bottom:1px solid #fef3c7;">
+                                    <span style="font-size:13px;color:#92400e;">Fecha</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{fechaStr}</strong>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:8px 0;">
+                                    <span style="font-size:13px;color:#92400e;">Horario</span><br>
+                                    <strong style="font-size:15px;color:#18181b;">{horaStr}</strong>
+                                  </td>
+                                </tr>
+                                {obsHtml}
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+                          <tr>
+                            <td align="center">
+                              <a href="{panelUrl}"
+                                 style="display:inline-block;padding:14px 32px;background:#d97706;color:#ffffff;
+                                        text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;
+                                        font-family:'DM Sans',sans-serif;letter-spacing:-0.2px;">
+                                Ir al panel a confirmar
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:0;font-size:13px;color:#a1a1aa;text-align:center;line-height:1.5;">
+                          Si no confirmás el turno, el cliente quedará esperando. Podés confirmar o rechazar desde el panel de administración.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background:#fafafa;padding:20px 40px;border-top:1px solid #f0f0f0;">
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">Este mensaje fue generado automáticamente por MetaTurnos.</p>
                       </td>
                     </tr>
                   </table>

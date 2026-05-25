@@ -625,6 +625,19 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.ToTable("servicios", (string)null);
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.ServicioDiaDisponible", b =>
+                {
+                    b.Property<Guid>("ServicioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DiaSemana")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ServicioId", "DiaSemana");
+
+                    b.ToTable("servicio_dias_disponibles", (string)null);
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.Sucursal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1226,6 +1239,17 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.Navigation("Sucursal");
                 });
 
+            modelBuilder.Entity("TurneroApp.Domain.Entities.ServicioDiaDisponible", b =>
+                {
+                    b.HasOne("TurneroApp.Domain.Entities.Servicio", "Servicio")
+                        .WithMany("DiasDisponibles")
+                        .HasForeignKey("ServicioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Servicio");
+                });
+
             modelBuilder.Entity("TurneroApp.Domain.Entities.SucursalMercadoPago", b =>
                 {
                     b.HasOne("TurneroApp.Domain.Entities.Sucursal", "Sucursal")
@@ -1369,6 +1393,8 @@ namespace TurneroApp.Infrastructure.Migrations
 
             modelBuilder.Entity("TurneroApp.Domain.Entities.Servicio", b =>
                 {
+                    b.Navigation("DiasDisponibles");
+
                     b.Navigation("Turnos");
                 });
 

@@ -186,8 +186,13 @@ public class TurnoService
         if (_suscripcionGuard is not null)
             await _suscripcionGuard.VerificarActivaAsync(dto.SucursalId);
 
-        var servicio = await _servicioRepository.GetByIdAsync(dto.ServicioId)
+        var servicio = await _servicioRepository.GetByIdConDiasAsync(dto.ServicioId)
             ?? throw new InvalidOperationException($"Servicio con Id {dto.ServicioId} no encontrado.");
+
+        if (servicio.DiasDisponibles.Count > 0 &&
+            !servicio.DiasDisponibles.Any(d => d.DiaSemana == dto.FechaHoraInicio.DayOfWeek))
+            throw new InvalidOperationException(
+                $"El servicio '{servicio.Nombre}' no se ofrece el día seleccionado.");
 
         var cliente = await _clienteRepository.GetByIdAsync(dto.ClienteId)
             ?? throw new InvalidOperationException($"Cliente con Id {dto.ClienteId} no encontrado.");
@@ -305,8 +310,9 @@ public class TurnoService
         turnoCompleto.Cliente  = turnoCompleto.Cliente  ?? cliente;
         turnoCompleto.Servicio = turnoCompleto.Servicio ?? servicio;
 
-        // Enviar email de confirmación solo si el turno quedó confirmado (no si está esperando pago)
-        if (estadoInicial != EstadoTurno.PendientePago && !string.IsNullOrWhiteSpace(cliente.Email))
+        // Email al cliente según el estado resultante (no si está esperando pago)
+        if ((estadoInicial == EstadoTurno.Confirmado || estadoInicial == EstadoTurno.Pendiente)
+            && !string.IsNullOrWhiteSpace(cliente.Email))
         {
             try
             {
@@ -316,16 +322,35 @@ public class TurnoService
                     ? $"{turnoCompleto.Profesional.Nombre} {turnoCompleto.Profesional.Apellido}".Trim()
                     : string.Empty;
 
-                var cancelUrl = $"{_frontendUrl.TrimEnd('/')}/turno/{turno.TokenGestion}";
-                await _emailService.EnviarConfirmacionTurnoAsync(
-                    cliente.Email,
-                    $"{cliente.Nombre} {cliente.Apellido}".Trim(),
-                    sucursalNombre,
-                    servicio.Nombre,
-                    profesionalNombre,
-                    turno.FechaHoraInicio,
-                    turno.FechaHoraFin,
-                    cancelUrl);
+                var permiteCancelacion = sucursalConfig?.ConfiguracionSucursal?.PermiteCancelacionCliente ?? true;
+                var cancelUrl = permiteCancelacion
+                    ? $"{_frontendUrl.TrimEnd('/')}/turno/{turno.TokenGestion}"
+                    : string.Empty;
+
+                if (estadoInicial == EstadoTurno.Confirmado)
+                {
+                    await _emailService.EnviarConfirmacionTurnoAsync(
+                        cliente.Email,
+                        $"{cliente.Nombre} {cliente.Apellido}".Trim(),
+                        sucursalNombre,
+                        servicio.Nombre,
+                        profesionalNombre,
+                        turno.FechaHoraInicio,
+                        turno.FechaHoraFin,
+                        cancelUrl);
+                }
+                else // Pendiente — modo confirmación manual
+                {
+                    await _emailService.EnviarSolicitudTurnoPendienteAsync(
+                        cliente.Email,
+                        $"{cliente.Nombre} {cliente.Apellido}".Trim(),
+                        sucursalNombre,
+                        servicio.Nombre,
+                        profesionalNombre,
+                        turno.FechaHoraInicio,
+                        turno.FechaHoraFin,
+                        cancelUrl);
+                }
             }
             catch
             {
@@ -333,24 +358,44 @@ public class TurnoService
             }
         }
 
-        // Notificar al profesional/owner del nuevo turno (solo si el turno ya quedó confirmado;
-        // si está PendientePago el aviso se envía cuando se confirme el pago en PagoTurnoService)
+        // Notificar al profesional/owner del nuevo turno.
+        // (si quedó en PendientePago el aviso se envía cuando se confirme el pago en PagoTurnoService)
         if (estadoInicial != EstadoTurno.PendientePago &&
             turnoCompleto.Profesional is not null && !string.IsNullOrWhiteSpace(turnoCompleto.Profesional.Email))
         {
             try
             {
-                var sucursal      = await _sucursalRepository.GetByIdAsync(dto.SucursalId);
+                var sucursal       = await _sucursalRepository.GetByIdAsync(dto.SucursalId);
                 var sucursalNombre = sucursal?.Nombre ?? "TurneroApp";
-                await _emailService.EnviarNuevoTurnoStaffAsync(
-                    turnoCompleto.Profesional.Email,
-                    $"{turnoCompleto.Profesional.Nombre} {turnoCompleto.Profesional.Apellido}".Trim(),
-                    sucursalNombre,
-                    servicio.Nombre,
-                    $"{cliente.Nombre} {cliente.Apellido}".Trim(),
-                    turno.FechaHoraInicio,
-                    turno.FechaHoraFin,
-                    turno.Observaciones);
+                var profNombre     = $"{turnoCompleto.Profesional.Nombre} {turnoCompleto.Profesional.Apellido}".Trim();
+                var clienteNombre  = $"{cliente.Nombre} {cliente.Apellido}".Trim();
+
+                if (estadoInicial == EstadoTurno.Pendiente)
+                {
+                    var panelUrl = $"{_frontendUrl.TrimEnd('/')}/admin";
+                    await _emailService.EnviarSolicitudTurnoStaffAsync(
+                        turnoCompleto.Profesional.Email,
+                        profNombre,
+                        sucursalNombre,
+                        servicio.Nombre,
+                        clienteNombre,
+                        turno.FechaHoraInicio,
+                        turno.FechaHoraFin,
+                        panelUrl,
+                        turno.Observaciones);
+                }
+                else
+                {
+                    await _emailService.EnviarNuevoTurnoStaffAsync(
+                        turnoCompleto.Profesional.Email,
+                        profNombre,
+                        sucursalNombre,
+                        servicio.Nombre,
+                        clienteNombre,
+                        turno.FechaHoraInicio,
+                        turno.FechaHoraFin,
+                        turno.Observaciones);
+                }
             }
             catch
             {
@@ -360,9 +405,9 @@ public class TurnoService
 
         var responseDto = MapToResponse(turnoCompleto);
 
-        // Notificación en tiempo real solo si el turno quedó confirmado de inmediato
+        // Notificación en tiempo real para turnos Confirmados y Pendientes de confirmación manual.
         // (si quedó en PendientePago, la notificación se dispara cuando se confirme el pago)
-        if (estadoInicial == EstadoTurno.Confirmado)
+        if (estadoInicial == EstadoTurno.Confirmado || estadoInicial == EstadoTurno.Pendiente)
         {
             if (_notificaciones is not null)
             {
@@ -375,7 +420,9 @@ public class TurnoService
             {
                 try
                 {
-                    var mensaje = $"Nuevo turno: {responseDto.ClienteNombre} — {responseDto.ServicioNombre}";
+                    var mensaje = estadoInicial == EstadoTurno.Pendiente
+                        ? $"Solicitud pendiente: {responseDto.ClienteNombre} — {responseDto.ServicioNombre}"
+                        : $"Nuevo turno: {responseDto.ClienteNombre} — {responseDto.ServicioNombre}";
                     if (!string.IsNullOrWhiteSpace(responseDto.Observaciones))
                         mensaje += " · Tiene un mensaje del cliente";
 
@@ -403,6 +450,7 @@ public class TurnoService
         var turno = await _turnoRepository.GetByIdConRelacionesAsync(id);
         if (turno is null) return null;
 
+        var estadoAnterior = turno.Estado;
         turno.Estado = dto.Estado;
 
         if (dto.Observaciones is not null)
@@ -454,8 +502,38 @@ public class TurnoService
         _turnoRepository.Update(turno);
         await _turnoRepository.SaveChangesAsync();
 
-        // ─── Notificaciones de cancelación ────────────────────────────────────
+        // ─── Email de confirmación cuando el admin aprueba un turno pendiente ──
         var estadoNuevo = dto.Estado;
+        if (estadoNuevo == EstadoTurno.Confirmado
+            && estadoAnterior == EstadoTurno.Pendiente
+            && turno.Cliente is not null
+            && !string.IsNullOrWhiteSpace(turno.Cliente.Email))
+        {
+            try
+            {
+                var sucursalInfo      = await _sucursalRepository.GetByIdAsync(turno.SucursalId);
+                var sucursalNombre    = sucursalInfo?.Nombre ?? "TurneroApp";
+                var servicioNombre    = turno.Servicio?.Nombre ?? string.Empty;
+                var profesionalNombre = turno.Profesional is not null
+                    ? $"{turno.Profesional.Nombre} {turno.Profesional.Apellido}".Trim()
+                    : string.Empty;
+                var clienteNombre = $"{turno.Cliente.Nombre} {turno.Cliente.Apellido}".Trim();
+                var cancelUrl     = $"{_frontendUrl.TrimEnd('/')}/turno/{turno.TokenGestion}";
+
+                await _emailService.EnviarConfirmacionTurnoAsync(
+                    turno.Cliente.Email,
+                    clienteNombre,
+                    sucursalNombre,
+                    servicioNombre,
+                    profesionalNombre,
+                    turno.FechaHoraInicio,
+                    turno.FechaHoraFin,
+                    cancelUrl);
+            }
+            catch { /* email no-crítico */ }
+        }
+
+        // ─── Notificaciones de cancelación ────────────────────────────────────
         if ((estadoNuevo == EstadoTurno.CanceladoStaff || estadoNuevo == EstadoTurno.CanceladoCliente)
             && turno.Cliente is not null
             && !string.IsNullOrWhiteSpace(turno.Cliente.Email))

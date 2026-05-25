@@ -162,9 +162,10 @@ public class RegisterService
         {
             await _emailService.EnviarBienvenidaAsync(email, nombre, nombreNegocio, frontendUrl);
         }
-        catch
+        catch (Exception ex)
         {
             // No propagamos errores de email — el registro ya fue exitoso
+            Console.Error.WriteLine($"[RegisterService] Error al enviar email de bienvenida a {email} ({nombreNegocio}): {ex.Message}");
         }
     }
 }

@@ -25,4 +25,5 @@ public class Servicio
     // Navigation properties
     public Sucursal Sucursal { get; set; } = null!;
     public ICollection<Turno> Turnos { get; set; } = new List<Turno>();
+    public ICollection<ServicioDiaDisponible> DiasDisponibles { get; set; } = new List<ServicioDiaDisponible>();
 }
