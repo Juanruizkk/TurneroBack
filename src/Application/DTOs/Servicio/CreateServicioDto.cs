@@ -38,4 +38,6 @@ public class CreateServicioDto
 
     public ModalidadPrestacion ModalidadPrestacion { get; set; }
     public TipoServicio TipoServicio { get; set; }
+    /// <summary>Días habilitados. Vacío o null = sin restricción (todos los días).</summary>
+    public List<DayOfWeek>? DiasDisponibles { get; set; }
 }
