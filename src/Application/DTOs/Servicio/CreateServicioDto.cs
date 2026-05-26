@@ -38,6 +38,6 @@ public class CreateServicioDto
 
     public ModalidadPrestacion ModalidadPrestacion { get; set; }
     public TipoServicio TipoServicio { get; set; }
-    /// <summary>Días habilitados. Vacío o null = sin restricción (todos los días).</summary>
+    /// <summary>Días de la semana en que se ofrece el servicio. Debe enviarse con los días explícitos (0=Dom…6=Sáb). El panel pre-selecciona los días abiertos de la sucursal.</summary>
     public List<DayOfWeek>? DiasDisponibles { get; set; }
 }

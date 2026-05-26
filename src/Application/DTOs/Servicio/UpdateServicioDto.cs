@@ -16,6 +16,6 @@ public class UpdateServicioDto
     public ModalidadPrestacion ModalidadPrestacion { get; set; }
     public TipoServicio TipoServicio { get; set; }
     // Activo se gestiona con DELETE /api/servicios/{id} (DesactivarAsync), no aquí
-    /// <summary>Días habilitados. Vacío o null = sin restricción (todos los días).</summary>
+    /// <summary>Días de la semana en que se ofrece el servicio (0=Dom…6=Sáb). Reemplaza completamente la lista existente.</summary>
     public List<DayOfWeek>? DiasDisponibles { get; set; }
 }

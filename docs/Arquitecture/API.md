@@ -476,7 +476,8 @@ Lista clientes con filtros opcionales.
   "tipoSena": "Porcentaje",
   "valorSena": 30,
   "modalidadPrestacion": "Presencial",
-  "tipoServicio": "Regular"
+  "tipoServicio": "Regular",
+  "diasDisponibles": [1, 2, 3, 4, 5]
 }
 ```
 
@@ -486,13 +487,15 @@ Lista clientes con filtros opcionales.
 
 `tipoSena`: `Fija` | `Porcentaje` | `null`
 
+`diasDisponibles`: lista de enteros donde `0=Domingo, 1=Lunes … 6=Sábado`. El panel pre-selecciona automáticamente los días que la sucursal tiene configurados como abiertos. Al crear el servicio también se lo asigna automáticamente a todos los profesionales activos de la sucursal.
+
 **Respuestas:** `201` `ServicioResponseDto` | `400`
 
 ---
 
 ### `PUT /api/servicios/{id}`
 
-**Body:** `UpdateServicioDto` (mismo esquema que create, sin `sucursalId`)
+**Body:** `UpdateServicioDto` (mismo esquema que create, sin `sucursalId`). `diasDisponibles` reemplaza la lista completa.
 
 **Respuestas:** `200` `ServicioResponseDto` | `400` | `404`
 
@@ -590,6 +593,56 @@ Reenvía el email de invitación al usuario. Solo válido si el usuario aún no 
 Soft-delete: cambia el estado a `Inactivo`. No elimina físicamente.
 
 **Respuestas:** `204` | `404`
+
+---
+
+### `GET /api/usuarios/{id}/horarios`
+
+Devuelve los horarios laborales del profesional.
+
+**Respuesta `200`:** `HorarioLaboralDto[]`
+
+---
+
+### `PUT /api/usuarios/{id}/horarios`
+
+Reemplaza completamente los horarios laborales del profesional. Los días activos (`activo: true`) son los únicos en que el profesional aparece disponible para reservas.
+
+El panel inicializa los días con los horarios de la sucursal (días abiertos en Ajustes). Para restringir la disponibilidad, desactivar los días correspondientes desde el panel de disponibilidad.
+
+**Body:** `HorarioLaboralDto[]`
+```json
+[
+  { "diaSemana": 1, "horaDesde": "09:00", "horaHasta": "18:00", "activo": true },
+  { "diaSemana": 2, "horaDesde": "09:00", "horaHasta": "18:00", "activo": true },
+  { "diaSemana": 6, "horaDesde": "09:00", "horaHasta": "13:00", "activo": false }
+]
+```
+
+`diaSemana`: `0=Domingo, 1=Lunes … 6=Sábado`
+
+**Respuestas:** `204` | `400` | `404`
+
+---
+
+### `GET /api/usuarios/{id}/servicios`
+
+Devuelve los IDs de servicios asignados al profesional.
+
+**Respuesta `200`:** `Guid[]`
+
+---
+
+### `PUT /api/usuarios/{id}/servicios`
+
+Reemplaza la lista de servicios que puede realizar el profesional. Al crear un servicio nuevo se lo asigna automáticamente a todos los profesionales activos. Para quitarle un servicio a un profesional, sacarlo de esta lista desde el panel de disponibilidad.
+
+**Body:** `Guid[]`
+```json
+["guid-servicio-1", "guid-servicio-2"]
+```
+
+**Respuestas:** `204` | `400` | `404`
 
 ---
 

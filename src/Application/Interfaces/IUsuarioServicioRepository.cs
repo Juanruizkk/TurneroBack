@@ -22,5 +22,11 @@ public interface IUsuarioServicioRepository
     /// </summary>
     Task ReplaceAsync(Guid usuarioSucursalRolId, IEnumerable<Guid> servicioIds);
 
+    /// <summary>
+    /// Asigna el servicio a todas las membresías activas de la sucursal que aún no lo tengan.
+    /// No llama SaveChangesAsync — el caller debe hacerlo.
+    /// </summary>
+    Task AsignarServicioASucursalAsync(Guid sucursalId, Guid servicioId);
+
     Task<int> SaveChangesAsync();
 }
