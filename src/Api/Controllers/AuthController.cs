@@ -131,6 +131,7 @@ public class AuthController : ControllerBase
 
     // POST /api/auth/forgot-password
     [HttpPost("forgot-password")]
+    [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
@@ -144,6 +145,7 @@ public class AuthController : ControllerBase
 
     // POST /api/auth/reset-password
     [HttpPost("reset-password")]
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)

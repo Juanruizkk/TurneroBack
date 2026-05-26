@@ -148,7 +148,8 @@ builder.Services.AddScoped<InvitacionService>(sp => new InvitacionService(
 builder.Services.AddScoped<RecuperacionContrasenaService>(sp => new RecuperacionContrasenaService(
     sp.GetRequiredService<IUsuarioRepository>(),
     sp.GetRequiredService<IEmailService>(),
-    builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173"));
+    builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173",
+    sp.GetRequiredService<ILogger<RecuperacionContrasenaService>>()));
 builder.Services.AddScoped<JwtService>();
 
 

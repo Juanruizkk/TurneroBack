@@ -7,15 +7,18 @@ namespace TurneroApp.Application.Services;
 
 public class ServicioService
 {
-    private readonly IServicioRepository _servicioRepository;
-    private readonly SuscripcionGuard    _suscripcionGuard;
+    private readonly IServicioRepository        _servicioRepository;
+    private readonly IUsuarioServicioRepository _usuarioServicioRepo;
+    private readonly SuscripcionGuard           _suscripcionGuard;
 
     public ServicioService(
-        IServicioRepository servicioRepository,
-        SuscripcionGuard    suscripcionGuard)
+        IServicioRepository        servicioRepository,
+        IUsuarioServicioRepository usuarioServicioRepo,
+        SuscripcionGuard           suscripcionGuard)
     {
-        _servicioRepository = servicioRepository;
-        _suscripcionGuard   = suscripcionGuard;
+        _servicioRepository  = servicioRepository;
+        _usuarioServicioRepo = usuarioServicioRepo;
+        _suscripcionGuard    = suscripcionGuard;
     }
 
     public async Task<IEnumerable<ServicioResponseDto>> GetAllAsync()
@@ -64,6 +67,9 @@ public class ServicioService
         if (dto.DiasDisponibles is { Count: > 0 })
             await _servicioRepository.ActualizarDiasDisponiblesAsync(servicio.Id, dto.DiasDisponibles);
 
+        // Asignar automáticamente a todos los profesionales activos de la sucursal
+        await _usuarioServicioRepo.AsignarServicioASucursalAsync(dto.SucursalId, servicio.Id);
+
         await _servicioRepository.SaveChangesAsync();
 
         // Recargar con días para el response
@@ -90,7 +96,7 @@ public class ServicioService
         servicio.TipoServicio = dto.TipoServicio;
         // Activo no se modifica aquí — usar DELETE /api/servicios/{id}
 
-        // Siempre reemplazar los días (null / vacío = sin restricción)
+        // Siempre reemplazar los días con la lista enviada (lista vacía = sin días = no disponible ningún día)
         await _servicioRepository.ActualizarDiasDisponiblesAsync(id, dto.DiasDisponibles ?? []);
 
         _servicioRepository.Update(servicio);
@@ -140,6 +146,6 @@ public class ServicioService
         ModalidadPrestacion = s.ModalidadPrestacion,
         TipoServicio = s.TipoServicio,
         Activo = s.Activo,
-        DiasDisponibles = s.DiasDisponibles.Select(d => d.DiaSemana).ToList(),
+        DiasDisponibles = s.DiasDisponibles.Select(d => (int)d.DiaSemana).ToList(),
     };
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TurneroApp.Application.Interfaces;
 using TurneroApp.Domain.Entities;
+using TurneroApp.Domain.Enums;
 using TurneroApp.Infrastructure.Data;
 
 namespace TurneroApp.Infrastructure.Repositories;
@@ -44,6 +45,30 @@ public class UsuarioServicioRepository : IUsuarioServicioRepository
             UsuarioSucursalRolId = usuarioSucursalRolId,
             ServicioId           = sId,
         });
+        await _context.UsuarioServicios.AddRangeAsync(nuevos);
+    }
+
+    /// <inheritdoc />
+    public async Task AsignarServicioASucursalAsync(Guid sucursalId, Guid servicioId)
+    {
+        // IDs de membresías activas en la sucursal
+        var usrIds = await _context.UsuarioSucursalRoles
+            .Where(usr => usr.SucursalId == sucursalId && usr.Estado == EstadoUsuario.Activo)
+            .Select(usr => usr.Id)
+            .ToListAsync();
+
+        if (usrIds.Count == 0) return;
+
+        // Solo los que aún no tienen el servicio
+        var yaAsignados = await _context.UsuarioServicios
+            .Where(us => usrIds.Contains(us.UsuarioSucursalRolId) && us.ServicioId == servicioId)
+            .Select(us => us.UsuarioSucursalRolId)
+            .ToListAsync();
+
+        var nuevos = usrIds
+            .Except(yaAsignados)
+            .Select(rolId => new UsuarioServicio { UsuarioSucursalRolId = rolId, ServicioId = servicioId });
+
         await _context.UsuarioServicios.AddRangeAsync(nuevos);
     }
 
