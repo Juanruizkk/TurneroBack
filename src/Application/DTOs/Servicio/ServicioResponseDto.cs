@@ -18,6 +18,6 @@ public class ServicioResponseDto
     public ModalidadPrestacion ModalidadPrestacion { get; set; }
     public TipoServicio TipoServicio { get; set; }
     public bool Activo { get; set; }
-    /// <summary>Días de la semana en que se ofrece el servicio. Vacío = todos los días.</summary>
-    public List<DayOfWeek> DiasDisponibles { get; set; } = [];
+    /// <summary>Días de la semana en que se ofrece el servicio (0=Dom … 6=Sáb). Los días se configuran explícitamente desde el panel.</summary>
+    public List<int> DiasDisponibles { get; set; } = [];
 }
