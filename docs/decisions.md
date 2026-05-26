@@ -90,9 +90,12 @@ Igual que el Create pero incluye `"activa": true|false` para activar/desactivar.
   "tipoSena": null,
   "valorSena": null,
   "modalidadPrestacion": "Presencial",
-  "tipoServicio": "Regular"
+  "tipoServicio": "Regular",
+  "diasDisponibles": [1, 2, 3, 4, 5]
 }
 ```
+
+`diasDisponibles`: enteros `0=Domingo … 6=Sábado`. El panel pre-selecciona los días abiertos de la sucursal. Al crear el servicio se lo asigna automáticamente a todos los profesionales activos.
 
 **Dos tiempos distintos:**
 - `duracionClienteMin`: lo que percibe el cliente (se muestra en la reserva pública).

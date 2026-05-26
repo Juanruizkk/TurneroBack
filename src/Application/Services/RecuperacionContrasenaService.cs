@@ -1,21 +1,25 @@
+using Microsoft.Extensions.Logging;
 using TurneroApp.Application.Interfaces;
 
 namespace TurneroApp.Application.Services;
 
 public class RecuperacionContrasenaService
 {
-    private readonly IUsuarioRepository _usuarioRepo;
-    private readonly IEmailService      _emailService;
-    private readonly string             _frontendUrl;
+    private readonly IUsuarioRepository              _usuarioRepo;
+    private readonly IEmailService                   _emailService;
+    private readonly string                          _frontendUrl;
+    private readonly ILogger<RecuperacionContrasenaService> _logger;
 
     public RecuperacionContrasenaService(
         IUsuarioRepository usuarioRepo,
         IEmailService      emailService,
-        string             frontendUrl)
+        string             frontendUrl,
+        ILogger<RecuperacionContrasenaService> logger)
     {
         _usuarioRepo  = usuarioRepo;
         _emailService = emailService;
         _frontendUrl  = frontendUrl;
+        _logger       = logger;
     }
 
     /// <summary>
@@ -49,9 +53,9 @@ public class RecuperacionContrasenaService
                 $"{usuario.Nombre} {usuario.Apellido}".Trim(),
                 link);
         }
-        catch
+        catch (Exception ex)
         {
-            // El email es no-crítico; el token quedó guardado.
+            _logger.LogError(ex, "Error al enviar email de recuperación de contraseña a {Email}", emailNorm);
         }
     }
 

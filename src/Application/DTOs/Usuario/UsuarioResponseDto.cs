@@ -23,10 +23,10 @@ public class UsuarioResponseDto
     /// </summary>
     public List<PermisoSistema> Permisos { get; set; } = new();
 
-    /// <summary>Horarios laborales configurados. Vacío = sin restricción.</summary>
+    /// <summary>Horarios laborales del profesional. Se inicializan con los días abiertos de la sucursal y se pueden ajustar individualmente.</summary>
     public List<HorarioLaboralDto> HorariosLaborales { get; set; } = new();
 
-    /// <summary>IDs de servicios que puede realizar. Vacío = todos los servicios.</summary>
+    /// <summary>IDs de servicios que puede realizar. Al crear un servicio nuevo se asigna automáticamente a todos los profesionales activos.</summary>
     public List<Guid> ServiciosIds { get; set; } = new();
 
     /// <summary>
