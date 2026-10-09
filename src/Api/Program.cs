@@ -410,25 +410,53 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
         await DemoDataSeeder.SeedAsync(db);
 }
 
-// ─── Seed plan base gratuito si no existe ningún plan ────────────────────────
+// ─── Seed plan base gratuito + migrar suscripciones existentes ───────────────
 static async Task EnsurePlanBaseAsync(TurneroApp.Infrastructure.Data.AppDbContext db)
 {
-    if (await db.Set<TurneroApp.Domain.Entities.Plan>().AnyAsync()) return;
+    var planId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
-    db.Set<TurneroApp.Domain.Entities.Plan>().Add(new TurneroApp.Domain.Entities.Plan
+    // Upsert del plan base (independiente de si hay otros planes)
+    var plan = await db.Set<TurneroApp.Domain.Entities.Plan>().FindAsync(planId);
+    if (plan is null)
     {
-        Id               = Guid.Parse("00000000-0000-0000-0000-000000000001"),
-        Nombre           = "Base Gratuito",
-        Descripcion      = "Plan gratuito. Hasta 3 usuarios y 100 turnos por mes.",
-        MaxUsuarios      = 3,
-        MaxTurnosMes     = 100,
-        PrecioMensual    = 0,
-        TieneReportes    = true,
-        EsActivo         = true,
-        OrdenDisplay     = 0,
-        DuracionTrialDias = 0,
-    });
+        db.Set<TurneroApp.Domain.Entities.Plan>().Add(new TurneroApp.Domain.Entities.Plan
+        {
+            Id                = planId,
+            Nombre            = "Base Gratuito",
+            Descripcion       = "Plan gratuito. Hasta 3 usuarios y 100 turnos por mes.",
+            MaxUsuarios       = 3,
+            MaxTurnosMes      = 100,
+            PrecioMensual     = 0,
+            TieneReportes     = true,
+            EsActivo          = true,
+            OrdenDisplay      = 0,
+            DuracionTrialDias = 0,
+        });
+    }
+    else
+    {
+        plan.Nombre            = "Base Gratuito";
+        plan.MaxUsuarios       = 3;
+        plan.MaxTurnosMes      = 100;
+        plan.PrecioMensual     = 0;
+        plan.TieneReportes     = true;
+        plan.EsActivo          = true;
+        plan.DuracionTrialDias = 0;
+    }
     await db.SaveChangesAsync();
+
+    // Migrar todas las suscripciones al plan base (apuntar al ID correcto y resetear estado)
+    var ahora = DateTime.UtcNow;
+    var suscripciones = await db.Set<TurneroApp.Domain.Entities.SucursalSuscripcion>().ToListAsync();
+    foreach (var s in suscripciones)
+    {
+        s.PlanId           = planId;
+        s.Estado           = TurneroApp.Domain.Enums.EstadoSuscripcion.Activa;
+        s.EnPeriodoPrueba  = false;
+        s.FechaVencimiento = ahora.AddYears(100);
+    }
+    if (suscripciones.Count > 0)
+        await db.SaveChangesAsync();
 }
 
 app.Run();
