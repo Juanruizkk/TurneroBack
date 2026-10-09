@@ -24,7 +24,8 @@ public class TokenResetUrlTests
         _sut = new RecuperacionContrasenaService(
             _usuarioRepo.Object,
             _emailService.Object,
-            "https://app.metaturnos.com");
+            "https://app.metaturnos.com",
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RecuperacionContrasenaService>.Instance);
     }
 
     /// <summary>
