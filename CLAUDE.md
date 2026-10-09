@@ -23,7 +23,7 @@ dotnet ef database update --project src/Infrastructure --startup-project src/Api
 
 **Swagger:** `http://localhost:5000/swagger` (solo disponible cuando el entorno es `Development`)
 
-**Puerto postgres local:** 5433 (el contenedor expone 5433→5432)
+**Puerto postgres local:** 5434 (el contenedor expone 5434→5432)
 
 ## Arquitectura
 
