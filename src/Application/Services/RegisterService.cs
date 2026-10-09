@@ -119,7 +119,7 @@ public class RegisterService
             Activa     = true,
         });
 
-        // 6. Suscripción de prueba (14 días)
+        // 6. Suscripción activa (plan base gratuito, sin vencimiento práctico)
         var planBasico = await _suscripcionRepo.GetPlanBasicoAsync();
         if (planBasico is not null)
         {
@@ -129,10 +129,10 @@ public class RegisterService
                 Id               = Guid.NewGuid(),
                 SucursalId       = sucursal.Id,
                 PlanId           = planBasico.Id,
-                Estado           = EstadoSuscripcion.PruebActiva,
+                Estado           = EstadoSuscripcion.Activa,
                 FechaInicio      = ahora,
-                FechaVencimiento = ahora.AddDays(planBasico.DuracionTrialDias),
-                EnPeriodoPrueba  = true,
+                FechaVencimiento = ahora.AddYears(100),
+                EnPeriodoPrueba  = false,
             });
         }
 

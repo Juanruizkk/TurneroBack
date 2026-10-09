@@ -123,7 +123,6 @@ builder.Services.AddScoped<SuperAdminService>(sp => new SuperAdminService(
     sp.GetRequiredService<ICajaRepository>(),
     sp.GetRequiredService<ISuscripcionRepository>()));
 builder.Services.AddScoped<AjustesService>();
-builder.Services.AddScoped<BotService>();
 builder.Services.AddScoped<OnboardingService>();
 builder.Services.AddScoped<SuscripcionGuard>(sp => new SuscripcionGuard(
     sp.GetRequiredService<ISuscripcionRepository>(),
@@ -406,8 +405,30 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+    await EnsurePlanBaseAsync(db);
     if (app.Environment.IsDevelopment())
         await DemoDataSeeder.SeedAsync(db);
+}
+
+// ─── Seed plan base gratuito si no existe ningún plan ────────────────────────
+static async Task EnsurePlanBaseAsync(TurneroApp.Infrastructure.Data.AppDbContext db)
+{
+    if (await db.Set<TurneroApp.Domain.Entities.Plan>().AnyAsync()) return;
+
+    db.Set<TurneroApp.Domain.Entities.Plan>().Add(new TurneroApp.Domain.Entities.Plan
+    {
+        Id               = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+        Nombre           = "Base Gratuito",
+        Descripcion      = "Plan gratuito. Hasta 3 usuarios y 100 turnos por mes.",
+        MaxUsuarios      = 3,
+        MaxTurnosMes     = 100,
+        PrecioMensual    = 0,
+        TieneReportes    = true,
+        EsActivo         = true,
+        OrdenDisplay     = 0,
+        DuracionTrialDias = 0,
+    });
+    await db.SaveChangesAsync();
 }
 
 app.Run();
