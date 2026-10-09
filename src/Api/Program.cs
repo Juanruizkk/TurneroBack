@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Prometheus;
 using TurneroApp.Api.Hubs;
 using TurneroApp.Api.Services;
 using TurneroApp.Application.Interfaces;
@@ -106,7 +107,7 @@ builder.Services.AddScoped<TurnoService>(sp =>
     var emailService   = sp.GetRequiredService<IEmailService>();
     var comentarioRepo = sp.GetRequiredService<IComentarioTurnoRepository>();
     var notificaciones = sp.GetRequiredService<ITurnoNotificacionService>();
-    var frontendUrl    = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
+    var frontendUrl    = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5174";
     var horarioRepo         = sp.GetRequiredService<IHorarioLaboralRepository>();
     var usuarioServicioRepo = sp.GetRequiredService<IUsuarioServicioRepository>();
     var suscripcionRepo     = sp.GetRequiredService<ISuscripcionRepository>();
@@ -122,6 +123,7 @@ builder.Services.AddScoped<SuperAdminService>(sp => new SuperAdminService(
     sp.GetRequiredService<ICajaRepository>(),
     sp.GetRequiredService<ISuscripcionRepository>()));
 builder.Services.AddScoped<AjustesService>();
+builder.Services.AddScoped<BotService>();
 builder.Services.AddScoped<OnboardingService>();
 builder.Services.AddScoped<SuscripcionGuard>(sp => new SuscripcionGuard(
     sp.GetRequiredService<ISuscripcionRepository>(),
@@ -311,6 +313,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:3000",
                 "http://localhost:5173",
+                "http://localhost:5174",
                 "https://metaturnos.com")
               .AllowAnyMethod()
               .AllowAnyHeader()
@@ -383,10 +386,16 @@ app.UseCors("AllowFrontend");
 // M-06: Rate limiter activo en todos los entornos
 app.UseRateLimiter();
 
+// Captura métricas HTTP (duración, conteo, códigos de estado) para Prometheus
+app.UseHttpMetrics();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<TurneroHub>("/hubs/turnero");
+
+// Endpoint /metrics scrapeado por Prometheus (no requiere autenticación)
+app.MapMetrics().AllowAnonymous();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
    .AllowAnonymous()
