@@ -62,7 +62,7 @@ public class NotificacionPersistenciaTests
 
     private void SetupCrearOk(Servicio servicio, Cliente cliente, Sucursal sucursal)
     {
-        _servicioRepo.Setup(r => r.GetByIdAsync(servicio.Id)).ReturnsAsync(servicio);
+        _servicioRepo.Setup(r => r.GetByIdConDiasAsync(servicio.Id)).ReturnsAsync(servicio);
         _clienteRepo.Setup(r  => r.GetByIdAsync(cliente.Id)).ReturnsAsync(cliente);
         _sucursalRepo.Setup(r => r.GetByIdConConfiguracionAsync(It.IsAny<Guid>())).ReturnsAsync(sucursal);
         _sucursalRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(sucursal);

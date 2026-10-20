@@ -59,8 +59,8 @@ public class SucursalServiceCreateTests
         await _sut.CreateAsync(CrearDto());
 
         suscripcionCapturada.Should().NotBeNull();
-        suscripcionCapturada!.Estado.Should().Be(EstadoSuscripcion.PruebActiva);
-        suscripcionCapturada.EnPeriodoPrueba.Should().BeTrue();
+        suscripcionCapturada!.Estado.Should().Be(EstadoSuscripcion.Activa);
+        suscripcionCapturada.EnPeriodoPrueba.Should().BeFalse();
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public class SucursalServiceCreateTests
         var despues = DateTime.UtcNow;
 
         suscripcionCapturada.Should().NotBeNull();
-        var esperadoMin = antes.AddDays(plan.DuracionTrialDias);
-        var esperadoMax = despues.AddDays(plan.DuracionTrialDias);
+        var esperadoMin = antes.AddYears(100);
+        var esperadoMax = despues.AddYears(100);
 
         suscripcionCapturada!.FechaVencimiento.Should().BeOnOrAfter(esperadoMin).And.BeOnOrBefore(esperadoMax);
     }
