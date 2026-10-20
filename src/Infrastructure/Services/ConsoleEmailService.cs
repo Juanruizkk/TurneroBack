@@ -342,7 +342,7 @@ public class ConsoleEmailService : IEmailService
             ║  [PDF adjunto: guia-inicio-metaturnos.pdf]            ║
             ╚══════════════════════════════════════════════════════╝
             """,
-            destinatarioEmail, destinatarioNombre, nombreNegocio, urlPanel);
+            destinatarioEmail, destinatarioNombre, nombreNegocio, urlPanel, urlPanel, urlPanel, urlPanel, urlPanel);
 
         return Task.CompletedTask;
     }

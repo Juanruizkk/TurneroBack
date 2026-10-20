@@ -60,7 +60,7 @@ builder.Services
                     queryDict.Remove("access_token");
                     context.Request.QueryString = QueryString.Create(
                         queryDict.SelectMany(kv =>
-                            kv.Value.Select(v => KeyValuePair.Create(kv.Key, v ?? string.Empty))));
+                            kv.Value.Select(v => KeyValuePair.Create<string, string?>(kv.Key, v ?? string.Empty))));
                 }
                 return Task.CompletedTask;
             }
