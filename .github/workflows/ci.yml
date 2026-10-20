@@ -197,7 +197,7 @@ jobs:
         run: dotnet restore TurneroApp.sln
 
       - name: Instalar CycloneDX
-        run: dotnet tool install --global CycloneDX
+        run: dotnet tool install --global CycloneDX --version '5.*'
 
       # Genera el SBOM listando todas las dependencias NuGet con versiones y licencias
       - name: Generar SBOM backend
