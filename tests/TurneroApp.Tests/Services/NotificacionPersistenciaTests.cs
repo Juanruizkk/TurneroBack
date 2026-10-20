@@ -144,8 +144,9 @@ public class NotificacionPersistenciaTests
     }
 
     [Fact]
-    public async Task Create_EstadoPendienteModoManual_NoPersistNotificacion()
+    public async Task Create_EstadoPendienteModoManual_PersistNotificacion()
     {
+        // Turno Pendiente (modo Manual) → SÍ persiste notificación para que el staff vea la solicitud al reabrir el panel
         var servicio = TurnoTestFactory.CrearServicio();
         var cliente  = TurnoTestFactory.CrearCliente();
         var sucursal = TurnoTestFactory.CrearSucursalConConfig(ModoConfirmacionTurnos.Manual);
@@ -155,8 +156,8 @@ public class NotificacionPersistenciaTests
 
         await _sut.CreateAsync(dto, OrigenTurno.Web);
 
-        _notificacionRepo.Verify(r => r.AddAsync(It.IsAny<Notificacion>()), Times.Never,
-            "no debe persistir si el turno quedó en Pendiente (modo Manual)");
+        _notificacionRepo.Verify(r => r.AddAsync(It.IsAny<Notificacion>()), Times.Once,
+            "debe persistir la notificación cuando el turno queda en Pendiente (modo Manual)");
     }
 
     [Fact]
