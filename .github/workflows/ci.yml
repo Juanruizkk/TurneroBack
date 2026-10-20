@@ -232,7 +232,7 @@ jobs:
 
       # Escanea dependencias NuGet declaradas en el .sln
       - name: Snyk test — dependencias NuGet
-        uses: snyk/actions/dotnet@master
+        uses: snyk/actions/dotnet@11b673cfb4b0dc0d860a1323caa199d54950dcce
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -244,7 +244,7 @@ jobs:
 
       # Escanea la imagen Docker por vulnerabilidades en OS y librerías
       - name: Snyk test — imagen Docker backend
-        uses: snyk/actions/docker@master
+        uses: snyk/actions/docker@11b673cfb4b0dc0d860a1323caa199d54950dcce
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

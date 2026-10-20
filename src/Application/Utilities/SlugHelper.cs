@@ -6,9 +6,9 @@ namespace TurneroApp.Application.Utilities;
 
 public static class SlugHelper
 {
-    private static readonly Regex _nonAlphanumeric  = new(@"[^a-z0-9]+",   RegexOptions.Compiled);
-    private static readonly Regex _trailingHyphens  = new(@"^-+|-+$",       RegexOptions.Compiled);
-    private static readonly Regex _validSlugPattern = new(@"^[a-z0-9][a-z0-9\-]*[a-z0-9]$|^[a-z0-9]$", RegexOptions.Compiled);
+    private static readonly Regex _nonAlphanumeric  = new(@"[^a-z0-9]+",   RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+    private static readonly Regex _trailingHyphens  = new(@"^-+|-+$",       RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+    private static readonly Regex _validSlugPattern = new(@"^[a-z0-9][a-z0-9\-]*[a-z0-9]$|^[a-z0-9]$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// Palabras reservadas que no pueden usarse como slug de sucursal.

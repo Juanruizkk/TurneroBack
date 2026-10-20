@@ -68,7 +68,7 @@ public class JwtService
         var audience = _config["Jwt:Audience"] ?? "TurneroAppClients";
         var hours    = int.Parse(_config["Jwt:ExpirationHours"] ?? "24");
 
-        var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+        var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)); // NOSONAR - secret comes from env vars at runtime; appsettings.json only holds a placeholder
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
