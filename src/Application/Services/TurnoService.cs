@@ -64,6 +64,13 @@ public class TurnoService
         return turnos.Select(MapToResponse);
     }
 
+    public async Task<IEnumerable<TurnoResponseDto>> GetByProfesionalAsync(
+        Guid profesionalId, DateTime? desde = null, DateTime? hasta = null)
+    {
+        var turnos = await _turnoRepository.GetByProfesionalAsync(profesionalId, desde, hasta);
+        return turnos.Select(MapToResponse);
+    }
+
     public async Task<TurnoResponseDto?> GetByIdAsync(Guid id)
     {
         var turno = await _turnoRepository.GetByIdConRelacionesAsync(id);

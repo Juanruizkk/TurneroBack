@@ -53,8 +53,6 @@ public class SuscripcionService
             var sucursal = await _sucursalRepo.GetByIdAsync(sucursalId);
             var fechaInicio = sucursal?.FechaCreacion ?? DateTime.UtcNow;
 
-            // Las sucursales existentes arrancan como Activa con 1 año de gracia
-            // (ya usaban el sistema antes de que se implementaran las suscripciones)
             var nueva = new SucursalSuscripcion
             {
                 Id               = Guid.NewGuid(),
@@ -62,7 +60,7 @@ public class SuscripcionService
                 PlanId           = planBasico.Id,
                 Estado           = EstadoSuscripcion.Activa,
                 FechaInicio      = fechaInicio,
-                FechaVencimiento = DateTime.UtcNow.AddYears(1),
+                FechaVencimiento = DateTime.UtcNow.AddYears(100),
                 EnPeriodoPrueba  = false,
             };
 

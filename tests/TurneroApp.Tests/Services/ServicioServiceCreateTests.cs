@@ -12,14 +12,16 @@ namespace TurneroApp.Tests.Services;
 
 public class ServicioServiceCreateTests
 {
-    private readonly Mock<IServicioRepository>    _servicioRepo    = new();
-    private readonly Mock<ISuscripcionRepository> _suscripcionRepo = new();
-    private readonly ServicioService              _sut;
+    private readonly Mock<IServicioRepository>         _servicioRepo         = new();
+    private readonly Mock<IUsuarioServicioRepository>  _usuarioServicioRepo  = new();
+    private readonly Mock<ISuscripcionRepository>      _suscripcionRepo      = new();
+    private readonly ServicioService                   _sut;
 
     public ServicioServiceCreateTests()
     {
         _sut = new ServicioService(
             _servicioRepo.Object,
+            _usuarioServicioRepo.Object,
             new SuscripcionGuard(_suscripcionRepo.Object));
     }
 
