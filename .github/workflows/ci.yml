@@ -1,46 +1,37 @@
 # .github/workflows/ci.yml
 
-name: CI — Build & Tests
+name: CI — Build, Tests, Seguridad & SBOM
 
-# ── Cuándo se activa el workflow ──────────────────────────────────────────────
 on:
   push:
-    branches: [ main, master ]       # Cada push a la rama principal
+    branches: [ main, master ]
   pull_request:
-    branches: [ main, master ]       # Cada PR que apunta a main/master
+    branches: [ main, master ]
 
-# Si llega un nuevo push mientras ya corre un workflow en la misma rama,
-# cancela el anterior para no desperdiciar minutos de CI.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Variables globales disponibles en todos los jobs
 env:
-  DOTNET_NOLOGO: true                  # Elimina el banner ASCII de dotnet en los logs
-  DOTNET_CLI_TELEMETRY_OPTOUT: true    # No envía telemetría a Microsoft
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
 
   # ─── JOB 1: Build + Unit Tests ──────────────────────────────────────────────
   unit-tests:
     name: "Build & Unit Tests"
-    runs-on: ubuntu-latest             # VM con Ubuntu, Docker, .NET preinstalado
+    runs-on: ubuntu-latest
 
     steps:
-      # 1. Descarga el código del repo en la VM
       - name: Checkout código
         uses: actions/checkout@v4
 
-      # 2. Instala la versión exacta de .NET que usa el proyecto
       - name: Instalar .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # 3. Cache de paquetes NuGet
-      #    La clave incluye un hash de todos los .csproj.
-      #    Si no cambiaron las dependencias, restaura desde cache (~30s -> ~5s).
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
@@ -49,19 +40,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      # 4. Descarga todos los paquetes NuGet declarados en el .sln
       - name: Restaurar dependencias
         run: dotnet restore TurneroApp.sln
 
-      # 5. Compila la solución completa en modo Release
-      #    --no-restore: ya restauramos en el step anterior, no repetir
       - name: Compilar solución
         run: dotnet build TurneroApp.sln --no-restore --configuration Release
 
-      # 6. Ejecuta solo los unit tests (sin Docker, rápidos)
-      #    --no-build: ya compilamos arriba, no volver a compilar
-      #    --logger trx: genera un archivo de reporte XML (estándar Visual Studio)
-      #    --results-directory: dónde guardar el .trx
       - name: Ejecutar Unit Tests
         run: |
           dotnet test tests/TurneroApp.Tests/TurneroApp.Tests.csproj \
@@ -70,8 +54,6 @@ jobs:
             --logger "trx;LogFileName=unit-tests.trx" \
             --results-directory ./test-results
 
-      # 7. Sube el archivo de resultados como artefacto del run
-      #    if: always() -> sube aunque los tests hayan fallado (para poder ver el reporte)
       - name: Subir resultados Unit Tests
         if: always()
         uses: actions/upload-artifact@v4
@@ -83,7 +65,7 @@ jobs:
   integration-tests:
     name: "Integration Tests (Docker)"
     runs-on: ubuntu-latest
-    needs: unit-tests                  # Solo corre si el JOB 1 terminó OK
+    needs: unit-tests
 
     steps:
       - name: Checkout código
@@ -108,9 +90,6 @@ jobs:
       - name: Compilar solución
         run: dotnet build TurneroApp.sln --no-restore --configuration Release
 
-      # Docker Engine ya está disponible en ubuntu-latest.
-      # Testcontainers lo detecta automáticamente y levanta los contenedores
-      # de PostgreSQL que necesitan los tests.
       - name: Ejecutar Integration Tests
         run: |
           dotnet test tests/TurneroApp.IntegrationTests/TurneroApp.IntegrationTests.csproj \
@@ -119,9 +98,6 @@ jobs:
             --logger "trx;LogFileName=integration-tests.trx" \
             --results-directory ./test-results
         env:
-          # Ryuk es el "limpiador" de Testcontainers. En algunos entornos CI
-          # puede fallar al intentar conectarse al daemon de Docker.
-          # Deshabilitarlo es la práctica recomendada en GitHub Actions.
           TESTCONTAINERS_RYUK_DISABLED: "true"
 
       - name: Subir resultados Integration Tests
@@ -131,12 +107,157 @@ jobs:
           name: integration-test-results
           path: ./test-results/*.trx
 
-  # ─── JOB 3: Deploy via Dokploy ───────────────────────────────────────────────
+  # ─── JOB 3: SonarCloud — Análisis de código ─────────────────────────────────
+  # Secrets requeridos: SONAR_TOKEN
+  # Variables requeridas: SONAR_PROJECT_KEY, SONAR_ORG
+  # Crear en: https://sonarcloud.io → tu organización → proyecto → Information
+  sonarcloud:
+    name: "SonarCloud — Análisis de código"
+    runs-on: ubuntu-latest
+
+    steps:
+      # fetch-depth: 0 es obligatorio para que SonarCloud pueda analizar
+      # el historial de git y calcular métricas de blame/new code.
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instalar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Instalar SonarScanner para .NET
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      - name: Instalar dotnet-coverage
+        run: dotnet tool install --global dotnet-coverage
+
+      - name: Restaurar dependencias
+        run: dotnet restore TurneroApp.sln
+
+      - name: Iniciar análisis SonarCloud
+        run: |
+          dotnet sonarscanner begin \
+            /k:"Juanruizkk_TurneroBack" \
+            /o:"juanruizkk" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.coveragexml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compilar solución
+        run: dotnet build TurneroApp.sln --no-restore --configuration Release
+
+      - name: Ejecutar tests con cobertura
+        run: |
+          dotnet-coverage collect \
+            "dotnet test tests/TurneroApp.Tests/TurneroApp.Tests.csproj --no-build --configuration Release" \
+            -f xml -o coverage.coveragexml
+
+      - name: Finalizar análisis SonarCloud
+        run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── JOB 4: SBOM (CycloneDX) ────────────────────────────────────────────────
+  sbom:
+    name: "Generar SBOM (CycloneDX)"
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restaurar dependencias
+        run: dotnet restore TurneroApp.sln
+
+      - name: Instalar CycloneDX
+        run: dotnet tool install --global CycloneDX
+
+      # Genera el SBOM listando todas las dependencias NuGet con versiones y licencias
+      - name: Generar SBOM backend
+        run: |
+          mkdir -p sbom
+          dotnet CycloneDX TurneroApp.sln -o sbom/ -j
+
+      - name: Subir SBOM como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-backend
+          path: sbom/
+
+  # ─── JOB 5: Snyk — Vulnerabilidades ─────────────────────────────────────────
+  # Secret requerido: SNYK_TOKEN
+  snyk:
+    name: "Snyk — Vulnerabilidades"
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurar dependencias
+        run: dotnet restore TurneroApp.sln
+
+      # Escanea dependencias NuGet declaradas en el .sln
+      - name: Snyk test — dependencias NuGet
+        uses: snyk/actions/dotnet@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Build imagen Docker backend
+        run: docker build -t turnero-backend:${{ github.sha }} .
+
+      # Escanea la imagen Docker por vulnerabilidades en OS y librerías
+      - name: Snyk test — imagen Docker backend
+        uses: snyk/actions/docker@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: turnero-backend:${{ github.sha }}
+          args: --severity-threshold=high
+
+  # ─── JOB 6: Deploy via Dokploy ───────────────────────────────────────────────
   deploy:
     name: "Deploy to Hostinger VPS (Dokploy)"
     runs-on: ubuntu-latest
-    needs: integration-tests        # Solo despliega si todos los tests pasaron
-    if: github.event_name == 'push' # No despliega en PRs, solo en push a main
+    needs: [ integration-tests, sbom, snyk ]
+    if: github.event_name == 'push'
 
     steps:
       - name: Trigger Dokploy webhook

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Prometheus;
 using TurneroApp.Api.Hubs;
 using TurneroApp.Api.Services;
 using TurneroApp.Application.Interfaces;
@@ -106,7 +107,7 @@ builder.Services.AddScoped<TurnoService>(sp =>
     var emailService   = sp.GetRequiredService<IEmailService>();
     var comentarioRepo = sp.GetRequiredService<IComentarioTurnoRepository>();
     var notificaciones = sp.GetRequiredService<ITurnoNotificacionService>();
-    var frontendUrl    = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173";
+    var frontendUrl    = builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5174";
     var horarioRepo         = sp.GetRequiredService<IHorarioLaboralRepository>();
     var usuarioServicioRepo = sp.GetRequiredService<IUsuarioServicioRepository>();
     var suscripcionRepo     = sp.GetRequiredService<ISuscripcionRepository>();
@@ -311,6 +312,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:3000",
                 "http://localhost:5173",
+                "http://localhost:5174",
                 "https://metaturnos.com")
               .AllowAnyMethod()
               .AllowAnyHeader()
@@ -383,10 +385,16 @@ app.UseCors("AllowFrontend");
 // M-06: Rate limiter activo en todos los entornos
 app.UseRateLimiter();
 
+// Captura métricas HTTP (duración, conteo, códigos de estado) para Prometheus
+app.UseHttpMetrics();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<TurneroHub>("/hubs/turnero");
+
+// Endpoint /metrics scrapeado por Prometheus (no requiere autenticación)
+app.MapMetrics().AllowAnonymous();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
    .AllowAnonymous()
@@ -397,8 +405,58 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+    await EnsurePlanBaseAsync(db);
     if (app.Environment.IsDevelopment())
         await DemoDataSeeder.SeedAsync(db);
+}
+
+// ─── Seed plan base gratuito + migrar suscripciones existentes ───────────────
+static async Task EnsurePlanBaseAsync(TurneroApp.Infrastructure.Data.AppDbContext db)
+{
+    var planId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    // Upsert del plan base (independiente de si hay otros planes)
+    var plan = await db.Set<TurneroApp.Domain.Entities.Plan>().FindAsync(planId);
+    if (plan is null)
+    {
+        db.Set<TurneroApp.Domain.Entities.Plan>().Add(new TurneroApp.Domain.Entities.Plan
+        {
+            Id                = planId,
+            Nombre            = "Base Gratuito",
+            Descripcion       = "Plan gratuito. Hasta 3 usuarios y 100 turnos por mes.",
+            MaxUsuarios       = 3,
+            MaxTurnosMes      = 100,
+            PrecioMensual     = 0,
+            TieneReportes     = true,
+            EsActivo          = true,
+            OrdenDisplay      = 0,
+            DuracionTrialDias = 0,
+        });
+    }
+    else
+    {
+        plan.Nombre            = "Base Gratuito";
+        plan.MaxUsuarios       = 3;
+        plan.MaxTurnosMes      = 100;
+        plan.PrecioMensual     = 0;
+        plan.TieneReportes     = true;
+        plan.EsActivo          = true;
+        plan.DuracionTrialDias = 0;
+    }
+    await db.SaveChangesAsync();
+
+    // Migrar todas las suscripciones al plan base (apuntar al ID correcto y resetear estado)
+    var ahora = DateTime.UtcNow;
+    var suscripciones = await db.Set<TurneroApp.Domain.Entities.SucursalSuscripcion>().ToListAsync();
+    foreach (var s in suscripciones)
+    {
+        s.PlanId           = planId;
+        s.Estado           = TurneroApp.Domain.Enums.EstadoSuscripcion.Activa;
+        s.EnPeriodoPrueba  = false;
+        s.FechaVencimiento = ahora.AddYears(100);
+    }
+    if (suscripciones.Count > 0)
+        await db.SaveChangesAsync();
 }
 
 app.Run();

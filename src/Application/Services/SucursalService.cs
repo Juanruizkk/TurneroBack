@@ -48,12 +48,8 @@ public class SucursalService
 
     public async Task<SucursalResponseDto> CreateAsync(CreateSucursalDto dto)
     {
-        // Obtener plan base — obligatorio para iniciar trial
         var plan = await _suscripcionRepository.GetPlanBasicoAsync()
-            ?? throw new InvalidOperationException("No existe un plan base activo. Creá al menos un plan antes de registrar sucursales.");
-
-        if (plan.DuracionTrialDias <= 0)
-            throw new InvalidOperationException("El plan base debe tener al menos 1 día de trial.");
+            ?? throw new InvalidOperationException("No existe un plan base activo.");
 
         var slug = await SlugHelper.GenerateUniqueSlugAsync(
             dto.Nombre,
@@ -84,16 +80,16 @@ public class SucursalService
             Activa     = true,
         });
 
-        // Toda sucursal nace con una suscripción en período de prueba
+        // Toda sucursal nace con el plan base gratuito activo
         await _suscripcionRepository.AddAsync(new SucursalSuscripcion
         {
             Id               = Guid.NewGuid(),
             SucursalId       = sucursal.Id,
             PlanId           = plan.Id,
-            Estado           = EstadoSuscripcion.PruebActiva,
-            EnPeriodoPrueba  = true,
+            Estado           = EstadoSuscripcion.Activa,
+            EnPeriodoPrueba  = false,
             FechaInicio      = ahora,
-            FechaVencimiento = ahora.AddDays(plan.DuracionTrialDias),
+            FechaVencimiento = ahora.AddYears(100),
         });
 
         await _sucursalRepository.SaveChangesAsync();

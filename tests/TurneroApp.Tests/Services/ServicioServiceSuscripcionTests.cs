@@ -13,11 +13,13 @@ namespace TurneroApp.Tests.Services;
 
 public class ServicioServiceSuscripcionTests
 {
-    private readonly Mock<IServicioRepository>    _servicioRepo    = new();
-    private readonly Mock<ISuscripcionRepository> _suscripcionRepo = new();
+    private readonly Mock<IServicioRepository>         _servicioRepo        = new();
+    private readonly Mock<IUsuarioServicioRepository>  _usuarioServicioRepo = new();
+    private readonly Mock<ISuscripcionRepository>      _suscripcionRepo     = new();
 
     private ServicioService BuildSut() => new ServicioService(
         _servicioRepo.Object,
+        _usuarioServicioRepo.Object,
         new SuscripcionGuard(_suscripcionRepo.Object));
 
     private static CreateServicioDto CrearDto(Guid? sucursalId = null) => new()
