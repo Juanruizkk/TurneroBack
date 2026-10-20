@@ -135,9 +135,9 @@ public class TurnoServiceSignalRTests
     }
 
     [Fact]
-    public async Task Create_EstadoPendiente_ModoManual_NoDisparaNotificacion()
+    public async Task Create_EstadoPendiente_ModoManual_DisparaNotificacion()
     {
-        // Turno Web + modo Manual → Pendiente → no notifica hasta que staff confirme
+        // Turno Web + modo Manual → Pendiente → SÍ notifica al staff para que sepa que hay una solicitud pendiente
         var servicio = TurnoTestFactory.CrearServicio();
         var cliente  = TurnoTestFactory.CrearCliente();
         var sucursal = TurnoTestFactory.CrearSucursalConConfig(ModoConfirmacionTurnos.Manual);
@@ -151,8 +151,8 @@ public class TurnoServiceSignalRTests
 
         _notificaciones.Verify(
             n => n.NotificarNuevoTurnoAsync(It.IsAny<TurnoResponseDto>()),
-            Times.Never,
-            "no debe notificar si el turno queda en Pendiente (modo Manual)");
+            Times.Once,
+            "debe notificar cuando el turno queda en Pendiente (modo Manual) para que el staff sepa que hay una solicitud");
     }
 
     [Fact]
