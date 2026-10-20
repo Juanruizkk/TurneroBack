@@ -34,9 +34,13 @@ public class WebhooksController : ControllerBase
     /// </summary>
     [HttpPost("mercadopago/{sucursalId:guid}")]
     public async Task<IActionResult> MercadoPago(
-        [FromRoute] Guid             sucursalId,
-        [FromQuery] string?          type,
-        [FromQuery] string?          topic,
+        [FromRoute] Guid              sucursalId,
+        [FromQuery] string?           type,
+        [FromQuery] string?           topic,
+        [FromQuery(Name = "data.id")] string? dataId,
+        [FromQuery] string?           id,
+        [FromHeader(Name = "x-signature")]    string? xSignature,
+        [FromHeader(Name = "x-request-id")]   string? xRequestId,
         [FromBody]  MpWebhookPayload? payload)
     {
         var eventType = type ?? topic ?? payload?.Type;
@@ -45,16 +49,12 @@ public class WebhooksController : ControllerBase
         // 1. Webhook v2 (body JSON):   {"type":"payment","data":{"id":"123"}}
         // 2. Webhook v2 (query param): ?data.id=123
         // 3. IPN legacy (query param): ?id=123&topic=payment
-        var rawId = payload?.Data?.Id
-                 ?? Request.Query["data.id"].FirstOrDefault()
-                 ?? Request.Query["id"].FirstOrDefault();
+        var rawId = payload?.Data?.Id ?? dataId ?? id;
 
         _logger.LogInformation("Webhook MP recibido: type={Type}, id={Id}, sucursalId={SucursalId}",
             eventType, rawId, sucursalId);
 
         // Seguridad: validar firma HMAC del webhook (solo si WebhookSecret está configurado)
-        var xSignature  = Request.Headers["x-signature"].FirstOrDefault();
-        var xRequestId  = Request.Headers["x-request-id"].FirstOrDefault();
         if (!ValidarFirmaWebhook(xSignature, xRequestId, rawId))
         {
             _logger.LogWarning(
@@ -103,21 +103,20 @@ public class WebhooksController : ControllerBase
     /// </summary>
     [HttpPost("mercadopago-suscripcion")]
     public async Task<IActionResult> MercadoPagoSuscripcion(
-        [FromQuery] string?          type,
-        [FromQuery] string?          topic,
+        [FromQuery] string?           type,
+        [FromQuery] string?           topic,
+        [FromQuery(Name = "data.id")] string? dataId,
+        [FromQuery] string?           id,
+        [FromHeader(Name = "x-signature")]    string? xSignature,
+        [FromHeader(Name = "x-request-id")]   string? xRequestId,
         [FromBody]  MpWebhookPayload? payload)
     {
         var eventType = type ?? topic ?? payload?.Type;
 
-        var rawId = payload?.Data?.Id
-                 ?? Request.Query["data.id"].FirstOrDefault()
-                 ?? Request.Query["id"].FirstOrDefault();
+        var rawId = payload?.Data?.Id ?? dataId ?? id;
 
         _logger.LogInformation(
             "Webhook MP suscripción recibido: type={Type}, id={Id}", eventType, rawId);
-
-        var xSignature = Request.Headers["x-signature"].FirstOrDefault();
-        var xRequestId = Request.Headers["x-request-id"].FirstOrDefault();
         // Si MasterWebhookSecret no está configurado, se usa WebhookSecret como fallback
         var masterSecret = string.IsNullOrEmpty(_mpOptions.MasterWebhookSecret)
             ? _mpOptions.WebhookSecret

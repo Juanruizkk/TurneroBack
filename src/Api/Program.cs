@@ -300,13 +300,6 @@ builder.Services.AddRateLimiter(options =>
 // ─── CORS ────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
