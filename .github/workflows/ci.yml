@@ -146,7 +146,13 @@ jobs:
         run: dotnet restore TurneroApp.sln
 
       - name: Iniciar análisis SonarCloud
-        run: dotnet sonarscanner begin /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+        run: |
+          dotnet sonarscanner begin \
+            /k:"Juanruizkk_TurneroBack" \
+            /o:"juanruizkk" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.coveragexml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
