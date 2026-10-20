@@ -40,7 +40,7 @@ public class TurnoServiceCreateTests
     /// <summary>Configura todos los mocks para un flujo CreateAsync sin errores.</summary>
     private void SetupCrearOk(Servicio servicio, Cliente cliente, Sucursal sucursal)
     {
-        _servicioRepo.Setup(r => r.GetByIdAsync(servicio.Id)).ReturnsAsync(servicio);
+        _servicioRepo.Setup(r => r.GetByIdConDiasAsync(servicio.Id)).ReturnsAsync(servicio);
         _clienteRepo.Setup(r  => r.GetByIdAsync(cliente.Id)).ReturnsAsync(cliente);
 
         // Sin suscripción → sin restricción de plan
@@ -75,7 +75,7 @@ public class TurnoServiceCreateTests
     [Fact]
     public async Task Create_ServicioNoEncontrado_LanzaException()
     {
-        _servicioRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
+        _servicioRepo.Setup(r => r.GetByIdConDiasAsync(It.IsAny<Guid>()))
             .ReturnsAsync((Servicio?)null);
 
         var dto = TurnoTestFactory.CrearDto();
@@ -88,7 +88,7 @@ public class TurnoServiceCreateTests
     public async Task Create_ClienteNoEncontrado_LanzaException()
     {
         var servicio = TurnoTestFactory.CrearServicio();
-        _servicioRepo.Setup(r => r.GetByIdAsync(servicio.Id)).ReturnsAsync(servicio);
+        _servicioRepo.Setup(r => r.GetByIdConDiasAsync(servicio.Id)).ReturnsAsync(servicio);
         _clienteRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
             .ReturnsAsync((Cliente?)null);
 
@@ -104,7 +104,7 @@ public class TurnoServiceCreateTests
         var servicio = TurnoTestFactory.CrearServicio();
         var cliente  = TurnoTestFactory.CrearCliente();
 
-        _servicioRepo.Setup(r => r.GetByIdAsync(servicio.Id)).ReturnsAsync(servicio);
+        _servicioRepo.Setup(r => r.GetByIdConDiasAsync(servicio.Id)).ReturnsAsync(servicio);
         _clienteRepo.Setup(r  => r.GetByIdAsync(cliente.Id)).ReturnsAsync(cliente);
         _turnoRepo.Setup(r => r.ExisteConflictoHorarioAsync(
                 It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), null))

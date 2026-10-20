@@ -136,9 +136,10 @@ public class TurnoAutoNoShowServiceTests
     // ── Con turnos pendientes — llamadas al repositorio ───────────────────────
 
     [Fact]
-    public async Task Ejecutar_ConTurnosPendientes_LlamaUpdateRangeUnaVez()
+    public async Task Ejecutar_ConTurnosPendientes_NoLlamaUpdateRange()
     {
-        // Arrange
+        // El servicio muta el estado de cada entidad en-place y llama SaveChangesAsync —
+        // no necesita UpdateRange porque EF Core rastrea los cambios automáticamente.
         var turnos = new[]
         {
             TurnoTestFactory.CrearTurnoConRelaciones(),
@@ -156,8 +157,8 @@ public class TurnoAutoNoShowServiceTests
         // Assert
         _turnoRepoMock.Verify(
             r => r.UpdateRange(It.IsAny<IEnumerable<Turno>>()),
-            Times.Once,
-            "debe llamar a UpdateRange exactamente una vez con todos los turnos");
+            Times.Never,
+            "la mutación en-place no requiere UpdateRange");
     }
 
     [Fact]
@@ -179,29 +180,23 @@ public class TurnoAutoNoShowServiceTests
     }
 
     [Fact]
-    public async Task Ejecutar_ConTurnosPendientes_UpdateRangeRecibeTodosLosTurnos()
+    public async Task Ejecutar_ConTurnosPendientes_TodosLosEstadosMutados()
     {
-        // Arrange
+        // Verifica que todos los turnos del lote tienen su estado cambiado a NoShow
+        // mediante mutación en-place (sin UpdateRange).
         var turno1 = TurnoTestFactory.CrearTurnoConRelaciones();
         var turno2 = TurnoTestFactory.CrearTurnoConRelaciones();
-        IEnumerable<Turno>? turnosCapturados = null;
 
         _turnoRepoMock
             .Setup(r => r.GetConfirmadosPendientesAntesDeAsync(It.IsAny<DateTime>()))
             .ReturnsAsync([turno1, turno2]);
 
-        _turnoRepoMock
-            .Setup(r => r.UpdateRange(It.IsAny<IEnumerable<Turno>>()))
-            .Callback<IEnumerable<Turno>>(list => turnosCapturados = list);
-
         // Act
         await InvocarEjecutarAsync();
 
         // Assert
-        turnosCapturados.Should().NotBeNull();
-        turnosCapturados!.Should().HaveCount(2)
-            .And.Contain(turno1)
-            .And.Contain(turno2);
+        turno1.Estado.Should().Be(EstadoTurno.NoShow);
+        turno2.Estado.Should().Be(EstadoTurno.NoShow);
     }
 
     // ── Fecha límite ──────────────────────────────────────────────────────────
