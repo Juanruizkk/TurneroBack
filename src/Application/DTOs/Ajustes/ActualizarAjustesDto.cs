@@ -15,6 +15,9 @@ public class ActualizarAjustesDto
     [MaxLength(500)]
     public string? FotoUrl { get; set; }
 
+    [MaxLength(500)]
+    public string? BackgroundUrl { get; set; }
+
     public List<string> Rubros { get; set; } = new();
 
     [Required, MaxLength(10)]
