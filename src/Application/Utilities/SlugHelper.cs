@@ -17,7 +17,7 @@ public static class SlugHelper
     {
         "admin", "api", "login", "register", "dashboard", "app",
         "planes", "pricing", "soporte", "www", "superadmin", "publico",
-        "auth", "reset", "forgot", "register", "invitacion", "turno",
+        "auth", "reset", "forgot", "invitacion", "turno",
         "reservar", "pago",
     };
 

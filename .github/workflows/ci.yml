@@ -261,5 +261,12 @@ jobs:
 
     steps:
       - name: Trigger Dokploy webhook
+        env:
+          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
         run: |
-          curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}"
+          if [ -z "$DOKPLOY_WEBHOOK_URL" ]; then
+            echo "::error::El secret DOKPLOY_WEBHOOK_URL no está configurado."
+            echo "Ir a: GitHub repo → Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          curl -fsSL -X POST "$DOKPLOY_WEBHOOK_URL"
