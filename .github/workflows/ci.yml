@@ -237,7 +237,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --severity-threshold=high
+          args: --file=TurneroApp.sln --severity-threshold=high
 
       - name: Build imagen Docker backend
         run: docker build -t turnero-backend:${{ github.sha }} .
