@@ -86,8 +86,9 @@ public class AjustesService
 
         // Actualizar campos de Sucursal
         sucursal.Nombre    = dto.Nombre.Trim();
-        sucursal.Slogan    = string.IsNullOrWhiteSpace(dto.Slogan) ? null : dto.Slogan.Trim();
-        sucursal.FotoUrl   = string.IsNullOrWhiteSpace(dto.FotoUrl) ? null : dto.FotoUrl.Trim();
+        sucursal.Slogan        = string.IsNullOrWhiteSpace(dto.Slogan) ? null : dto.Slogan.Trim();
+        sucursal.FotoUrl       = string.IsNullOrWhiteSpace(dto.FotoUrl) ? null : dto.FotoUrl.Trim();
+        sucursal.BackgroundUrl = string.IsNullOrWhiteSpace(dto.BackgroundUrl) ? null : dto.BackgroundUrl.Trim();
         sucursal.Rubros    = dto.Rubros;
         sucursal.Moneda       = dto.Moneda;
         sucursal.Direccion    = dto.Direccion.Trim();

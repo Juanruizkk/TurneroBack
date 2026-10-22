@@ -323,26 +323,25 @@ public class ConsoleEmailService : IEmailService
         string nombreNegocio,
         string urlPanel)
     {
-        _logger.LogWarning(
-            """
+        var msg = $"""
             ╔══════════════════════════════════════════════════════╗
             ║           [DEV] EMAIL DE BIENVENIDA                  ║
             ╠══════════════════════════════════════════════════════╣
-            ║  Para:    {Email}
-            ║  Nombre:  {Nombre}
-            ║  Negocio: {Negocio}
-            ║  Panel:   {Panel}
+            ║  Para:    {destinatarioEmail}
+            ║  Nombre:  {destinatarioNombre}
+            ║  Negocio: {nombreNegocio}
+            ║  Panel:   {urlPanel}
             ╠══════════════════════════════════════════════════════╣
             ║  Pasos de configuración inicial:                      ║
-            ║  Asistente: {Panel}/admin/onboarding                  ║
+            ║  Asistente: {urlPanel}/admin/onboarding               ║
             ║  - O por secciones:                                   ║
-            ║    1. Ajustes   → {Panel}/admin/ajustes               ║
-            ║    2. Servicios → {Panel}/admin/servicios             ║
-            ║    3. Equipo    → {Panel}/admin/usuarios              ║
+            ║    1. Ajustes   → {urlPanel}/admin/ajustes            ║
+            ║    2. Servicios → {urlPanel}/admin/servicios          ║
+            ║    3. Equipo    → {urlPanel}/admin/usuarios           ║
             ║  [PDF adjunto: guia-inicio-metaturnos.pdf]            ║
             ╚══════════════════════════════════════════════════════╝
-            """,
-            destinatarioEmail, destinatarioNombre, nombreNegocio, urlPanel, urlPanel, urlPanel, urlPanel, urlPanel);
+            """;
+        _logger.LogWarning("{Mensaje}", msg);
 
         return Task.CompletedTask;
     }

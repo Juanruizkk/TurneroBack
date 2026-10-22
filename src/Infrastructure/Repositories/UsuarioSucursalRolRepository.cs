@@ -19,6 +19,7 @@ public class UsuarioSucursalRolRepository : IUsuarioSucursalRolRepository
             .Include(u => u.Permisos)
             .Include(u => u.HorariosLaborales)
             .Include(u => u.Servicios)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(u => u.Id == id);
     }
 
@@ -38,6 +39,7 @@ public class UsuarioSucursalRolRepository : IUsuarioSucursalRolRepository
             .Include(u => u.Permisos)
             .Include(u => u.HorariosLaborales)
             .Include(u => u.Servicios)
+            .AsSplitQuery()
             .Where(u => u.SucursalId == sucursalId)
             .OrderBy(u => u.Usuario.Apellido)
             .ThenBy(u => u.Usuario.Nombre)
@@ -85,6 +87,7 @@ public class UsuarioSucursalRolRepository : IUsuarioSucursalRolRepository
             .Include(u => u.Permisos)
             .Include(u => u.HorariosLaborales)
             .Include(u => u.Servicios)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(u => u.Id == id);
         if (usr is null) return;
         _context.UsuarioSucursalRoles.Remove(usr);
