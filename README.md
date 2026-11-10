@@ -22,6 +22,18 @@ API REST del sistema de gestión de turnos **MetaTurnos**: agenda, clientes, ser
 - **Tiempo real** — actualizaciones de agenda vía SignalR.
 - **Observabilidad** — endpoint `/metrics` (Prometheus) listo para scraping.
 
+## La app que potencia esta API
+
+| Dashboard | Agenda |
+|---|---|
+| ![Dashboard](docs/screenshots/01_dashboard.png) | ![Agenda](docs/screenshots/02_agenda_turnos.png) |
+
+Reserva online pública (sin cuenta):
+
+![Reserva pública](docs/screenshots/18_booking_pagina_publica.png)
+
+> El frontend vive en [TurneroFront](https://github.com/Juanruizkk/TurneroFront).
+
 ## Stack
 
 | Capa | Tecnología |
