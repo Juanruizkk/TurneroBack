@@ -346,6 +346,61 @@ public class ConsoleEmailService : IEmailService
         return Task.CompletedTask;
     }
 
+    public Task EnviarReporteProblemaAsync(
+        string soporteEmail,
+        string descripcion,
+        string? emailContacto,
+        string? urlOrigen,
+        string? userAgent)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║           [DEV] REPORTE DE PROBLEMA                  ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Soporte:   {Soporte}
+            ║  Contacto:  {Contacto}
+            ║  Página:    {Url}
+            ║  Navegador: {UserAgent}
+            ╠══════════════════════════════════════════════════════╣
+            ║  {Descripcion}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            soporteEmail,
+            string.IsNullOrWhiteSpace(emailContacto) ? "—" : emailContacto,
+            urlOrigen ?? "—",
+            userAgent ?? "—",
+            descripcion);
+
+        return Task.CompletedTask;
+    }
+
+    public Task EnviarSolicitudAmpliacionAsync(
+        string soporteEmail,
+        string sucursalNombre,
+        string solicitanteNombre,
+        string solicitanteEmail,
+        string usoResumen,
+        string? mensaje)
+    {
+        _logger.LogWarning(
+            """
+            ╔══════════════════════════════════════════════════════╗
+            ║        [DEV] SOLICITUD DE AMPLIACIÓN DE PLAN         ║
+            ╠══════════════════════════════════════════════════════╣
+            ║  Soporte:     {Soporte}
+            ║  Sucursal:    {Sucursal}
+            ║  Solicitante: {Nombre} ({Email})
+            ║  Uso actual:  {Uso}
+            ║  Mensaje:     {Mensaje}
+            ╚══════════════════════════════════════════════════════╝
+            """,
+            soporteEmail, sucursalNombre, solicitanteNombre, solicitanteEmail,
+            usoResumen, string.IsNullOrWhiteSpace(mensaje) ? "—" : mensaje);
+
+        return Task.CompletedTask;
+    }
+
     public Task EnviarRecordatorioAsync(
         string destinatarioEmail,
         string destinatarioNombre,

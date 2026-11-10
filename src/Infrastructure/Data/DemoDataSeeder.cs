@@ -140,169 +140,19 @@ public static class DemoDataSeeder
     }
 
     // ─── Seed completo (sucursal nueva) ───────────────────────────────────────
+    // Delega en DemoDatasetBuilder (misma lógica reutilizada por DemoTenantService)
+    // para no duplicar la definición del dataset. En dev el slug es fijo y los
+    // turnos se siembran relativos a la semana actual (no mayo 2026 fijo).
     private static async Task FullSeedAsync(AppDbContext db)
     {
-        // 1. Sucursal
-        var sucursal = new Sucursal
-        {
-            Id            = Guid.NewGuid(),
-            Nombre        = "Zen Massage Center",
-            Slug          = DemoSlug,
-            Slogan        = "Tu momento de paz y relajación",
-            Direccion     = "Av. Siempre Viva 742, Springfield",
-            Telefono      = "123456789",
-            Email         = "contacto@zenmassage.com",
-            Moneda        = "ARS",
-            Rubros        = new List<string> { "Masajes", "Bienestar", "Spa" },
-            FechaCreacion = DateTime.UtcNow
-        };
-        db.Sucursales.Add(sucursal);
-
-        // 2. Configuración
-        db.ConfiguracionesSucursal.Add(new ConfiguracionSucursal
-        {
-            Id                               = Guid.NewGuid(),
-            SucursalId                       = sucursal.Id,
-            MinutosAnticipacionMinimaReserva = 60,
-            DiasMaximosReservaFutura         = 30,
-            MinutosBufferEntreTurnos         = 15,
-            PermiteCancelacionCliente        = true,
-            HorasMinimasCancelacion          = 2,
-            ModoConfirmacionTurnos           = ModoConfirmacionTurnos.Automatico,
-            HorariosAtencionJson             = "{}"
-        });
-
-        // 3. Caja
-        var caja = new Caja
-        {
-            Id         = Guid.NewGuid(),
-            SucursalId = sucursal.Id,
-            Nombre     = "Caja Principal",
-            Activa     = true
-        };
-        db.Cajas.Add(caja);
-
-        // 4. Profesional / Owner
-        var profesional = new Usuario
-        {
-            Id            = Guid.NewGuid(),
-            Nombre        = "Adrián",
-            Apellido      = "Sosa",
-            Email         = "adrian.sosa@zenmassage.com",
-            Telefono      = "987654321",
-            PasswordHash  = BCrypt.Net.BCrypt.HashPassword("Demo123!"),
-            FechaCreacion = DateTime.UtcNow
-        };
-        db.Usuarios.Add(profesional);
-
-        // 5. Rol
-        var rol = new UsuarioSucursalRol
-        {
-            Id            = Guid.NewGuid(),
-            UsuarioId     = profesional.Id,
-            SucursalId    = sucursal.Id,
-            Rol           = RolUsuario.Profesional,
-            EsOwner       = true,
-            Estado        = EstadoUsuario.Activo,
-            FechaCreacion = DateTime.UtcNow
-        };
-        db.UsuarioSucursalRoles.Add(rol);
-
-        // 6. Horarios laborales Lun–Vie 09:00–18:00
-        for (int i = 1; i <= 5; i++)
-        {
-            db.HorariosLaborales.Add(new HorarioLaboral
-            {
-                Id                   = Guid.NewGuid(),
-                UsuarioSucursalRolId = rol.Id,
-                DiaSemana            = (DayOfWeek)i,
-                HoraDesde            = new TimeSpan(9, 0, 0),
-                HoraHasta            = new TimeSpan(18, 0, 0),
-                Activo               = true
-            });
-        }
-
-        // 7. Servicios  (orden por duración: [0]=45m  [1]=60m  [2]=90m)
-        var s0 = new Servicio   // Relajante — 45 min
-        {
-            Id                  = Guid.NewGuid(),
-            SucursalId          = sucursal.Id,
-            Nombre              = "Masaje Relajante",
-            Descripcion         = "Masaje suave para reducir el estrés.",
-            Precio              = 4000,
-            DuracionClienteMin  = 45,
-            DuracionAgendaMin   = 45,
-            Activo              = true,
-            ModalidadPrestacion = ModalidadPrestacion.Presencial,
-            TipoServicio        = TipoServicio.Regular
-        };
-        var s1 = new Servicio   // Descontracturante — 60 min
-        {
-            Id                  = Guid.NewGuid(),
-            SucursalId          = sucursal.Id,
-            Nombre              = "Masaje Descontracturante",
-            Descripcion         = "Masaje profundo para liberar tensiones musculares.",
-            Precio              = 5000,
-            DuracionClienteMin  = 60,
-            DuracionAgendaMin   = 60,
-            Activo              = true,
-            ModalidadPrestacion = ModalidadPrestacion.Presencial,
-            TipoServicio        = TipoServicio.Regular
-        };
-        var s2 = new Servicio   // Piedras Calientes — 90 min
-        {
-            Id                  = Guid.NewGuid(),
-            SucursalId          = sucursal.Id,
-            Nombre              = "Masaje con Piedras Calientes",
-            Descripcion         = "Terapia geotermal para relajación profunda.",
-            Precio              = 7500,
-            DuracionClienteMin  = 90,
-            DuracionAgendaMin   = 90,
-            Activo              = true,
-            ModalidadPrestacion = ModalidadPrestacion.Presencial,
-            TipoServicio        = TipoServicio.Regular
-        };
-        db.Servicios.AddRange(s0, s1, s2);
-
-        // 8. Vincular servicios al profesional
-        foreach (var srv in new[] { s0, s1, s2 })
-            db.UsuarioServicios.Add(new UsuarioServicio { UsuarioSucursalRolId = rol.Id, ServicioId = srv.Id });
-
-        // 9. Clientes  (orden alfabético por nombre: Ana, Carlos, Elena, Juan, Luis, María)
-        var clientes = new List<Cliente>
-        {
-            new() { Id = Guid.NewGuid(), SucursalId = sucursal.Id, Nombre = "Ana",    Apellido = "Martínez",  Telefono = "1166778899", Email = "ana.mtz@example.com"      },
-            new() { Id = Guid.NewGuid(), SucursalId = sucursal.Id, Nombre = "Carlos", Apellido = "Rodríguez", Telefono = "1155443322", Email = "carlos.rod@example.com"   },
-            new() { Id = Guid.NewGuid(), SucursalId = sucursal.Id, Nombre = "Elena",  Apellido = "Sánchez",   Telefono = "1144556677", Email = "elena.s@example.com"      },
-            new() { Id = Guid.NewGuid(), SucursalId = sucursal.Id, Nombre = "Juan",   Apellido = "Pérez",     Telefono = "1122334455", Email = "juan.perez@example.com"   },
-            new() { Id = Guid.NewGuid(), SucursalId = sucursal.Id, Nombre = "Luis",   Apellido = "González",  Telefono = "1133221100", Email = "luis.gonz@example.com"    },
-            new() { Id = Guid.NewGuid(), SucursalId = sucursal.Id, Nombre = "María",  Apellido = "García",    Telefono = "1199887766", Email = "maria.garcia@example.com" },
-        };
-        db.Clientes.AddRange(clientes);
-
-        // 10. Sesión de caja
-        var sesion = new CajaSesion
-        {
-            Id                = Guid.NewGuid(),
-            CajaId            = caja.Id,
-            UsuarioAperturaId = profesional.Id,
-            FechaApertura     = new DateTime(2026, 5, 1, 9, 0, 0, DateTimeKind.Unspecified),
-            MontoInicial      = 0,
-            Estado            = EstadoCajaSesion.Abierta
-        };
-        db.CajaSesiones.Add(sesion);
-
-        // Guardar todo antes de crear turnos (para que los FK existan)
+        var lunes = DemoDatasetBuilder.LunesDeLaSemana(DateTime.Now);
+        DemoDatasetBuilder.Build(db, new DemoDatasetBuilder.Opciones(
+            Slug: DemoSlug,
+            EmailSuffix: "",
+            SemanaBase: lunes,
+            EsDemo: false,
+            DemoExpiraEn: null));
         await db.SaveChangesAsync();
-
-        // 11. Turnos
-        var serviciosList = new List<Servicio> { s0, s1, s2 };
-        CrearTurnos(db, sucursal.Id, profesional.Id, caja.Id, sesion.Id, serviciosList, clientes);
-
-        await db.SaveChangesAsync();
-
-        // 12. Usuarios demo adicionales (Administrativo, Profesional, Caja)
-        await EnsureUsuariosDemoAsync(db, sucursal);
     }
 
     // ─── Usuarios demo extra (idempotente) ───────────────────────────────────

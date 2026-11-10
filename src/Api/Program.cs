@@ -21,6 +21,12 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Secretos locales opcionales (gitignorado). Permite a quien clona el repo poner sus
+// credenciales en un JSON simple en lugar del CLI de user-secrets.
+// Copiá appsettings.Secrets.Example.json → appsettings.Secrets.json y completalo.
+// En producción este archivo no existe; usá variables de entorno (ver README).
+builder.Configuration.AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true);
+
 // ─── JWT Authentication ───────────────────────────────────────────────────────
 var jwtSecret = builder.Configuration["Jwt:Secret"]
     ?? throw new InvalidOperationException("Jwt:Secret no configurado.");
@@ -152,6 +158,18 @@ builder.Services.AddScoped<RecuperacionContrasenaService>(sp => new Recuperacion
     builder.Configuration["App:FrontendUrl"] ?? "http://localhost:5173",
     sp.GetRequiredService<ILogger<RecuperacionContrasenaService>>()));
 builder.Services.AddScoped<JwtService>();
+
+// ─── Demo pública por visitante ──────────────────────────────────────────────
+builder.Services.Configure<TurneroApp.Api.Options.DemoOptions>(
+    builder.Configuration.GetSection(TurneroApp.Api.Options.DemoOptions.SectionName));
+builder.Services.AddScoped<IDemoTenantService>(sp =>
+{
+    var db  = sp.GetRequiredService<AppDbContext>();
+    var opt = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TurneroApp.Api.Options.DemoOptions>>().Value;
+    return new DemoTenantService(db, opt.TtlMinutos, opt.MaxPorIp, opt.MaxGlobal);
+});
+if (builder.Configuration.GetValue<bool>("Demo:Enabled"))
+    builder.Services.AddHostedService<DemoCleanupBackgroundService>();
 
 
 // ─── MercadoPago ─────────────────────────────────────────────────────────────
@@ -285,11 +303,30 @@ builder.Services.AddSwaggerGen(c =>
 // ─── Rate Limiting ───────────────────────────────────────────────────────────
 builder.Services.AddRateLimiter(options =>
 {
-    // 10 intentos por IP cada 15 minutos en endpoints de autenticación
+    // 10 intentos por IP cada 15 minutos en endpoints de autenticación (generoso en dev para testing)
     options.AddFixedWindowLimiter("auth", limiterOptions =>
     {
         limiterOptions.Window              = TimeSpan.FromMinutes(15);
-        limiterOptions.PermitLimit         = 10;
+        limiterOptions.PermitLimit         = builder.Environment.IsDevelopment() ? 1000 : 10;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit          = 0;
+    });
+
+    // Malla de red para POST /api/demo/crear (el límite real 3/IP lo aplica DemoTenantService).
+    // En Development se afloja para poder probar sin chocar el 429.
+    options.AddFixedWindowLimiter("demo", limiterOptions =>
+    {
+        limiterOptions.Window              = TimeSpan.FromMinutes(10);
+        limiterOptions.PermitLimit         = builder.Environment.IsDevelopment() ? 1000 : 6;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit          = 0;
+    });
+
+    // Reportes de problema desde el footer: 5 por IP cada 10 minutos
+    options.AddFixedWindowLimiter("soporte", limiterOptions =>
+    {
+        limiterOptions.Window              = TimeSpan.FromMinutes(10);
+        limiterOptions.PermitLimit         = 5;
         limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         limiterOptions.QueueLimit          = 0;
     });
@@ -438,17 +475,23 @@ static async Task EnsurePlanBaseAsync(TurneroApp.Infrastructure.Data.AppDbContex
     }
     await db.SaveChangesAsync();
 
-    // Migrar todas las suscripciones al plan base (apuntar al ID correcto y resetear estado)
+    // Reasignar al plan base SOLO las suscripciones huérfanas (apuntan a un plan que ya no existe).
+    // Las que tienen un plan válido —incluidos los pagos Starter/Pro/Premium— se respetan, para que
+    // un cambio de plan hecho por el superadmin persista entre reinicios.
     var ahora = DateTime.UtcNow;
-    var suscripciones = await db.Set<TurneroApp.Domain.Entities.SucursalSuscripcion>().ToListAsync();
-    foreach (var s in suscripciones)
+    var planIdsValidos = await db.Set<TurneroApp.Domain.Entities.Plan>()
+        .Select(p => p.Id).ToListAsync();
+    var huerfanas = await db.Set<TurneroApp.Domain.Entities.SucursalSuscripcion>()
+        .Where(s => !planIdsValidos.Contains(s.PlanId))
+        .ToListAsync();
+    foreach (var s in huerfanas)
     {
         s.PlanId           = planId;
         s.Estado           = TurneroApp.Domain.Enums.EstadoSuscripcion.Activa;
         s.EnPeriodoPrueba  = false;
         s.FechaVencimiento = ahora.AddYears(100);
     }
-    if (suscripciones.Count > 0)
+    if (huerfanas.Count > 0)
         await db.SaveChangesAsync();
 }
 

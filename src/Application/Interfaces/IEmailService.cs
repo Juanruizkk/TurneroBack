@@ -113,6 +113,29 @@ public interface IEmailService
         string urlPanel);
 
     /// <summary>
+    /// Envía a la casilla de soporte un reporte de problema enviado por un usuario
+    /// desde el footer público. <paramref name="emailContacto"/> es opcional.
+    /// </summary>
+    Task EnviarReporteProblemaAsync(
+        string soporteEmail,
+        string descripcion,
+        string? emailContacto,
+        string? urlOrigen,
+        string? userAgent);
+
+    /// <summary>
+    /// Envía a la casilla de soporte una solicitud de ampliación de plan hecha por el
+    /// owner de una sucursal (más usuarios o turnos). El superadmin la procesa a mano.
+    /// </summary>
+    Task EnviarSolicitudAmpliacionAsync(
+        string soporteEmail,
+        string sucursalNombre,
+        string solicitanteNombre,
+        string solicitanteEmail,
+        string usoResumen,
+        string? mensaje);
+
+    /// <summary>
     /// Recordatorio automático enviado antes del turno.
     /// <paramref name="es24h"/>: <c>true</c> para el recordatorio de 24 h, <c>false</c> para el de 3 h.
     /// </summary>

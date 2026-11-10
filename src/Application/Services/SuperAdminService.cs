@@ -367,6 +367,8 @@ public class SuperAdminService
             Email         = s.Email,
             Activa        = s.Activa,
             FechaCreacion = s.FechaCreacion,
+            EsDemo        = s.EsDemo,
+            DemoExpiraEn  = s.DemoExpiraEn,
             Owner         = owner is null ? null : new OwnerInfoDto
             {
                 Id             = owner.Id,

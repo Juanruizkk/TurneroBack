@@ -80,6 +80,21 @@ public class SucursalConfiguration : IEntityTypeConfiguration<Sucursal>
             .HasDefaultValueSql("now()")
             .HasColumnType("timestamptz");
 
+        builder.Property(s => s.EsDemo)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(s => s.DemoExpiraEn)
+            .IsRequired(false)
+            .HasColumnType("timestamptz");
+
+        builder.Property(s => s.DemoIp)
+            .HasMaxLength(64)
+            .IsRequired(false);
+
+        builder.HasIndex(s => new { s.EsDemo, s.DemoExpiraEn })
+            .HasDatabaseName("IX_sucursales_demo");
+
         // Relación con UsuarioSucursalRol configurada en UsuarioSucursalRolConfiguration.
 
         builder.HasMany(s => s.Servicios)

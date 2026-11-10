@@ -69,16 +69,35 @@ Convenciones clave: IDs `Guid` asignados manualmente, dinero como `numeric(18,2)
 Requisitos: [.NET 8 SDK](https://dotnet.microsoft.com/download) y [Docker](https://www.docker.com/).
 
 ```bash
-# 1. Levantar la base de datos
+# 1. Levantar la base de datos (PostgreSQL en localhost:5434)
 docker compose up -d
+```
 
-# 2. Configurar los secrets locales (no van al repo)
+**2. Configurar los secrets locales** (no van al repo). Elegí una de las dos opciones:
+
+**Opción A — archivo (más simple):** copiá el template y completalo.
+
+```bash
+cd src/Api
+cp appsettings.Secrets.Example.json appsettings.Secrets.json
+# Editá appsettings.Secrets.json:
+#   - ConnectionStrings:DefaultConnection → misma Password que POSTGRES_PASSWORD de docker-compose.yml
+#   - Jwt:Secret → cualquier cadena de 32+ caracteres
+#   - SuperAdmin:Email / SuperAdmin:Password → con esto entrás al panel /superadmin
+```
+
+**Opción B — user-secrets (CLI):**
+
+```bash
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" \
-  "Host=localhost;Port=5433;Database=turnero;Username=postgres;Password=TU_PASSWORD" \
+  "Host=localhost;Port=5434;Database=turnero;Username=postgres;Password=TU_PASSWORD" \
   --project src/Api
 dotnet user-secrets set "Jwt:Secret" "una-clave-de-minimo-32-caracteres" --project src/Api
+dotnet user-secrets set "SuperAdmin:Email" "admin@tudominio.com" --project src/Api
 dotnet user-secrets set "SuperAdmin:Password" "TuPasswordSuperAdmin!" --project src/Api
+```
 
+```bash
 # 3. Correr la API (aplica migrations automáticamente en Development)
 dotnet watch run --project src/Api
 ```
@@ -86,7 +105,16 @@ dotnet watch run --project src/Api
 - **API:** http://localhost:5000/api
 - **Swagger:** http://localhost:5000/swagger (solo en Development)
 
-> Las credenciales nunca van en `appsettings.json`. En desarrollo se usan [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets); en producción, variables de entorno (ver `.env.prod.example`).
+> Los secretos nunca van en `appsettings.json` ni en `appsettings.Secrets.json` (este último está en `.gitignore`). En producción se inyectan como variables de entorno (ej. `SuperAdmin__Password`, `Jwt__Secret`) desde el panel de tu plataforma de deploy.
+
+## Entrar como Super Admin
+
+El super admin **no es un usuario de la base de datos**: se valida contra la configuración (`SuperAdmin:Email` / `SuperAdmin:Password`). Una vez corriendo:
+
+1. Asegurate de haber definido esos valores en el paso 2.
+2. Ingresá en el login del frontend con ese email y contraseña → caés en el panel `/superadmin` (sucursales, planes, suscripciones).
+
+Si el login falla, revisá la consola del backend: avisa con un warning cuando `SuperAdmin:Email` o `SuperAdmin:Password` no están configurados.
 
 ## Migrations
 

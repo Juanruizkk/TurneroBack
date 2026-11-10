@@ -17,7 +17,7 @@ namespace TurneroApp.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.0")
+                .HasAnnotation("ProductVersion", "8.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -656,6 +656,13 @@ namespace TurneroApp.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateTime?>("DemoExpiraEn")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("DemoIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Direccion")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -665,6 +672,11 @@ namespace TurneroApp.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("EsDemo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
@@ -719,6 +731,9 @@ namespace TurneroApp.Infrastructure.Migrations
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasDatabaseName("IX_sucursales_slug");
+
+                    b.HasIndex("EsDemo", "DemoExpiraEn")
+                        .HasDatabaseName("IX_sucursales_demo");
 
                     b.ToTable("sucursales", (string)null);
                 });
