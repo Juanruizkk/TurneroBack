@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TurneroApp.Application.Validation;
 
 namespace TurneroApp.Application.DTOs.Auth;
 
@@ -18,7 +19,7 @@ public class RegisterDto
     public string Email { get; set; } = string.Empty;
 
     [Required]
-    [MinLength(8)]
+    [StrongPassword]
     [MaxLength(100)]
     public string Password { get; set; } = string.Empty;
 

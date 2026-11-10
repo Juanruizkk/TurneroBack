@@ -172,6 +172,31 @@ public class ResendEmailService : IEmailService
         return EnviarAsync(destinatarioEmail, asunto, cuerpo);
     }
 
+    public Task EnviarReporteProblemaAsync(
+        string soporteEmail,
+        string descripcion,
+        string? emailContacto,
+        string? urlOrigen,
+        string? userAgent)
+    {
+        var asunto = "🐞 Nuevo reporte de problema — MetaTurnos";
+        var cuerpo = PlantillaReporteProblema(descripcion, emailContacto, urlOrigen, userAgent);
+        return EnviarAsync(soporteEmail, asunto, cuerpo);
+    }
+
+    public Task EnviarSolicitudAmpliacionAsync(
+        string soporteEmail,
+        string sucursalNombre,
+        string solicitanteNombre,
+        string solicitanteEmail,
+        string usoResumen,
+        string? mensaje)
+    {
+        var asunto = $"📈 Solicitud de ampliación de plan — {sucursalNombre}";
+        var cuerpo = PlantillaSolicitudAmpliacion(sucursalNombre, solicitanteNombre, solicitanteEmail, usoResumen, mensaje);
+        return EnviarAsync(soporteEmail, asunto, cuerpo);
+    }
+
     public Task EnviarRecordatorioAsync(
         string destinatarioEmail,
         string destinatarioNombre,
@@ -237,6 +262,147 @@ public class ResendEmailService : IEmailService
     }
 
     // ─── Templates ────────────────────────────────────────────────────────────
+
+    private static string PlantillaReporteProblema(
+        string descripcion,
+        string? emailContacto,
+        string? urlOrigen,
+        string? userAgent)
+    {
+        var enc        = (string? s) => System.Net.WebUtility.HtmlEncode(s ?? "—");
+        var contacto   = string.IsNullOrWhiteSpace(emailContacto) ? "No dejó email" : enc(emailContacto);
+        var descHtml   = enc(descripcion).Replace("\n", "<br>");
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Reporte de problema</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+                <tr><td align="center">
+                  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                    <tr>
+                      <td style="background:#b91c1c;padding:24px 40px 20px;text-align:center;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
+                          🐞 Reporte de problema
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px;">
+                        <p style="margin:0 0 8px;font-size:13px;color:#71717a;">Descripción</p>
+                        <div style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;padding:18px 20px;margin-bottom:24px;font-size:15px;color:#18181b;line-height:1.6;">
+                          {descHtml}
+                        </div>
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                              <span style="font-size:13px;color:#71717a;">Contacto</span><br>
+                              <strong style="font-size:14px;color:#18181b;">{contacto}</strong>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                              <span style="font-size:13px;color:#71717a;">Página</span><br>
+                              <strong style="font-size:14px;color:#18181b;">{enc(urlOrigen)}</strong>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:8px 0;">
+                              <span style="font-size:13px;color:#71717a;">Navegador</span><br>
+                              <span style="font-size:12px;color:#52525b;">{enc(userAgent)}</span>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string PlantillaSolicitudAmpliacion(
+        string sucursalNombre,
+        string solicitanteNombre,
+        string solicitanteEmail,
+        string usoResumen,
+        string? mensaje)
+    {
+        var enc        = (string? s) => System.Net.WebUtility.HtmlEncode(s ?? "—");
+        var mensajeHtml = string.IsNullOrWhiteSpace(mensaje)
+            ? ""
+            : $"""
+                        <p style="margin:0 0 8px;font-size:13px;color:#71717a;">Mensaje</p>
+                        <div style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;padding:16px 18px;margin-bottom:20px;font-size:14px;color:#18181b;line-height:1.6;">
+                          {enc(mensaje).Replace("\n", "<br>")}
+                        </div>
+            """;
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Solicitud de ampliación de plan</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans','Nunito',system-ui,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+                <tr><td align="center">
+                  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                    <tr>
+                      <td style="background:#2F7D6B;padding:24px 40px 20px;text-align:center;">
+                        <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
+                          📈 Solicitud de ampliación de plan
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px;">
+                        <p style="margin:0 0 20px;font-size:15px;color:#52525b;line-height:1.6;">
+                          <strong>{enc(solicitanteNombre)}</strong> ({enc(solicitanteEmail)}) solicita ampliar el plan de
+                          <strong>{enc(sucursalNombre)}</strong>.
+                        </p>
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+                          <tr>
+                            <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                              <span style="font-size:13px;color:#71717a;">Sucursal</span><br>
+                              <strong style="font-size:15px;color:#18181b;">{enc(sucursalNombre)}</strong>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                              <span style="font-size:13px;color:#71717a;">Uso actual</span><br>
+                              <strong style="font-size:15px;color:#18181b;">{enc(usoResumen)}</strong>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:8px 0;">
+                              <span style="font-size:13px;color:#71717a;">Contacto</span><br>
+                              <strong style="font-size:15px;color:#18181b;">{enc(solicitanteEmail)}</strong>
+                            </td>
+                          </tr>
+                        </table>
+                        {mensajeHtml}
+                        <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.5;">
+                          Entrá al panel de superadmin para extenderle el plan.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
 
     private static string PlantillaConfirmacionTurno(
         string nombre,

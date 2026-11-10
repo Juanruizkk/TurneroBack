@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TurneroApp.Application.Validation;
 
 namespace TurneroApp.Application.DTOs.SuperAdmin;
 
@@ -43,6 +44,7 @@ public class CrearSucursalConOwnerDto
     public string OwnerTelefono { get; set; } = string.Empty;
 
     [Required]
+    [StrongPassword]
     [MaxLength(500)]
     public string OwnerPassword { get; set; } = string.Empty;
 }

@@ -151,6 +151,7 @@ public class TurnoRepository : GenericRepository<Turno>, ITurnoRepository
             .Include(t => t.Sucursal)
                 .ThenInclude(s => s!.ConfiguracionSucursal)
             .Where(t =>
+                (t.Sucursal == null || !t.Sucursal.EsDemo) &&
                 (t.Estado == EstadoTurno.Confirmado || t.Estado == EstadoTurno.Pendiente) &&
                 t.FechaHoraInicio > ahora &&
                 (

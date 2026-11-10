@@ -21,6 +21,16 @@ public class Sucursal
     public bool Activa { get; set; } = true;
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 
+    // ─── Demo efímera por visitante ────────────────────────────────────────────
+    /// <summary>True si la sucursal es una demo efímera por visitante.</summary>
+    public bool EsDemo { get; set; } = false;
+
+    /// <summary>Instante de expiración de la demo (creación + TTL). Null si no es demo.</summary>
+    public DateTime? DemoExpiraEn { get; set; }
+
+    /// <summary>IP del visitante que creó la demo (para el rate-limit por IP). Null si no es demo.</summary>
+    public string? DemoIp { get; set; }
+
     // Navigation properties
     public ICollection<UsuarioSucursalRol> UsuarioSucursalRoles { get; set; } = new List<UsuarioSucursalRol>();
     public ICollection<Servicio> Servicios { get; set; } = new List<Servicio>();

@@ -10,6 +10,10 @@ public class SucursalSuperAdminDto
     public string Slug { get; set; } = string.Empty;
     public bool Activa { get; set; }
     public DateTime FechaCreacion { get; set; }
+    /// <summary>True si es una sucursal demo efímera (se auto-destruye al vencer).</summary>
+    public bool EsDemo { get; set; }
+    /// <summary>Instante de expiración si es demo; null en caso contrario.</summary>
+    public DateTime? DemoExpiraEn { get; set; }
     public OwnerInfoDto? Owner { get; set; }
 }
 
